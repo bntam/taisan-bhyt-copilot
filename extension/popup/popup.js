@@ -339,10 +339,17 @@
     popupChatMessages.appendChild(userDiv);
     popupChatMessages.scrollTop = popupChatMessages.scrollHeight;
 
-    // Send to background service worker
+    // Send to background service worker with active tab context
+    const currentIcd = auditIcdCode ? auditIcdCode.textContent : '';
     chrome.runtime.sendMessage({
       type: 'ASK_CHAT_COPILOT',
-      payload: { query: q, context: { hospital_level: '4' } }
+      payload: { 
+        query: q, 
+        context: { 
+          hospital_level: '4',
+          icdCode: currentIcd && currentIcd !== 'Chưa nhận diện' ? currentIcd : ''
+        } 
+      }
     }, (resp) => {
       const botDiv = document.createElement('div');
       botDiv.className = 'popup-chat-msg assistant';
@@ -362,9 +369,14 @@
             <div style="background:#f1f5f9;border-left:3px solid #0284c7;padding:6px;border-radius:4px;margin-top:6px;font-family:monospace;font-size:11px;">
               ${d.suggested_snippet}
             </div>
-            <button class="btn-snippet-copy" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;margin-top:4px;">
-              📋 Sao Chép Đoạn Này
-            </button>
+            <div style="display:flex; gap:6px; margin-top:6px;">
+              <button class="btn-snippet-copy" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;flex:1;">
+                📋 Sao Chép
+              </button>
+              <button class="btn-snippet-inject" style="background:#0d9488;color:#fff;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;flex:1;">
+                ⚡ Điền Vào HIS
+              </button>
+            </div>
           `;
         }
         botDiv.innerHTML = formatted + snippetHtml;
@@ -374,7 +386,24 @@
           copyBtn.onclick = () => {
             navigator.clipboard.writeText(d.suggested_snippet);
             copyBtn.textContent = '✅ Đã Chép!';
-            setTimeout(() => copyBtn.textContent = '📋 Sao Chép Đoạn Này', 2000);
+            setTimeout(() => copyBtn.textContent = '📋 Sao Chép', 2000);
+          };
+        }
+
+        const injectBtn = botDiv.querySelector('.btn-snippet-inject');
+        if (injectBtn) {
+          injectBtn.onclick = () => {
+            if (currentActiveTabId) {
+              chrome.tabs.sendMessage(currentActiveTabId, {
+                type: 'INJECT_SNIPPET',
+                snippet: d.suggested_snippet
+              }, (injResp) => {
+                injectBtn.textContent = '✅ Đã Điền HIS!';
+                setTimeout(() => injectBtn.textContent = '⚡ Điền Vào HIS', 2000);
+              });
+            } else {
+              injectBtn.textContent = '⚠️ Mở Tab HIS';
+            }
           };
         }
       } else {

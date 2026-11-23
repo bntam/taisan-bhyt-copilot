@@ -667,6 +667,9 @@
     if (message.type === 'TRIGGER_AUTOFILL') {
       performClinicalAutofill();
       sendResponse({ success: true });
+    } else if (message.type === 'INJECT_SNIPPET') {
+      performSnippetAutofill(message.snippet);
+      sendResponse({ success: true });
     } else if (message.type === 'GET_DOM_STATE') {
       runAudit();
       sendResponse({ success: true, audit: currentAudit });

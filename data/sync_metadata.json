@@ -1,15 +1,15 @@
 {
   "version": "1.0.0",
-  "last_sync": "2026-11-24T00:26:29.149211",
-  "db_sha256": "966833d49567f81d91b50303a13258d7425fe40643b249b7df30a7d0317b446b",
+  "last_sync": "2026-11-24T00:36:34.695754",
+  "db_sha256": "83780fbecc05156035e9d0ed3eb8ab98610b49d6750df9a7cecccd4192a0743c",
   "remote_etag": "\"53550639057a54dd6ccd91d7af6080f0bc27bab8612313da173ccfe96c3c4258\"",
   "backup_path": null,
   "counts": {
     "icd10": 15827,
-    "thuoc_bhyt": 450,
+    "thuoc_bhyt": 558,
     "thu_thuat_bhyt": 10,
-    "thuoc_yhct": 240,
-    "yhct_icd10_mapping": 115,
+    "thuoc_yhct": 300,
+    "yhct_icd10_mapping": 145,
     "xuat_toan_rules": 22
   },
   "sources": [

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BHYT Clinical Copilot - Phòng Khám Tài Sanh",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "In-Browser Copilot hỗ trợ bác sĩ tra cứu danh mục BHYT/YHCT, cảnh báo xuất toán thời gian thực và 1-click clinical note autofill trên phần mềm HIS.",
   "icons": {
     "16": "icons/icon-16.png",

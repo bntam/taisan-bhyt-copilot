@@ -337,7 +337,99 @@ body {
   line-height: 1.5;
 }
 
-/* Tab 2: Search */
+/* Tab 2: AI Clinical Chatbox */
+.chat-quick-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.chat-quick-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-quick-chips .chip {
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: var(--bg-slate);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-quick-chips .chip:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: var(--primary);
+}
+
+.popup-chat-messages {
+  height: 270px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+  margin-bottom: 10px;
+}
+
+.popup-chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.popup-chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.popup-chat-msg {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.popup-chat-msg.user {
+  background: var(--primary);
+  color: #ffffff;
+  align-self: flex-end;
+  max-width: 85%;
+  border-bottom-right-radius: 2px;
+}
+
+.popup-chat-msg.assistant {
+  background: var(--bg-slate);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  align-self: flex-start;
+  max-width: 95%;
+  border-bottom-left-radius: 2px;
+}
+
+.popup-chat-msg strong {
+  color: #0f172a;
+}
+
+.popup-chat-msg.user strong {
+  color: #ffffff;
+}
+
+.popup-chat-input-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Tab 3: Search */
 .search-input-wrapper {
   position: relative;
   margin-bottom: 10px;
