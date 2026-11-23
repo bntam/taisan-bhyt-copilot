@@ -32,7 +32,7 @@
   }
 
   function extractPageContext() {
-    const docText = document.body ? document.body.innerText : '';
+    // A. Detect ICD-10 Code
     let icdCode = '';
     const icdSelectors = [
       'input[name*="icd" i]', 'input[id*="icd" i]', 'input[class*="icd" i]',
@@ -62,31 +62,25 @@
       }
     }
 
+    // B. Detect Prescribed Drugs
     const drugs = [];
-    const drugSelectors = [
-      'input[name*="thuoc" i]', 'input[id*="thuoc" i]', 'input[name*="drug" i]',
-      '.drug-item', '.thuoc-item', 'table.don-thuoc tr', 'table.prescription tr',
-      '[data-field="drug_name"]', '.prescription-row'
-    ];
-
-    drugSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => {
-        const txt = el.value || el.innerText || '';
-        if (txt.trim() && txt.length > 2 && !drugs.includes(txt.trim())) {
-          drugs.push(txt.trim());
-        }
-      });
-    });
+    const rxContainer = document.querySelector('table.don-thuoc, table.prescription, #prescriptionTable, .don-thuoc, .prescription-list') || document.body;
+    const rxText = rxContainer ? rxContainer.innerText.toLowerCase() : '';
 
     if (catalog && catalog.thuoc_bhyt) {
       catalog.thuoc_bhyt.forEach(d => {
         const name = d.ten_hoat_chat.toLowerCase();
-        if (docText.toLowerCase().includes(name) && !drugs.some(x => x.toLowerCase().includes(name))) {
-          drugs.push(d.ten_hoat_chat);
+        // Match full name or primary part
+        const primary = name.split('+')[0].trim().split(' ')[0].trim();
+        if (rxText.includes(name) || (primary.length > 4 && rxText.includes(primary))) {
+          if (!drugs.some(x => x.toLowerCase() === name)) {
+            drugs.push(d.ten_hoat_chat);
+          }
         }
       });
     }
 
+    // C. Detect YHCT Procedures (Thủ thuật)
     const procedures = [];
     const procKeywords = [
       { name: 'Điện châm điều trị', match: ['điện châm', 'dien cham'] },
@@ -96,15 +90,7 @@
       { name: 'Thủy châm vào huyệt', match: ['thủy châm', 'thuy cham'] }
     ];
 
-    procKeywords.forEach(pk => {
-      for (const m of pk.match) {
-        if (docText.toLowerCase().includes(m)) {
-          procedures.push(pk.name);
-          break;
-        }
-      }
-    });
-
+    // Check checked checkboxes for procedures
     document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
       const label = cb.closest('label') ? cb.closest('label').innerText : (cb.parentElement ? cb.parentElement.innerText : '');
       procKeywords.forEach(pk => {
@@ -114,23 +100,33 @@
       });
     });
 
+    // Fallback scan in procedure container
+    const procContainer = document.querySelector('.thu-thuat, [name*="thu_thuat"], .procedure-section');
+    if (procContainer) {
+      const pText = procContainer.innerText.toLowerCase();
+      procKeywords.forEach(pk => {
+        if (pk.match.some(m => pText.includes(m)) && !procedures.includes(pk.name)) {
+          procedures.push(pk.name);
+        }
+      });
+    }
+
+    // D. Detect Lab Tests (Cận lâm sàng)
     const labTests = [];
     const labKeywords = ['lipid', 'cholesterol', 'triglyceride', 'ldl', 'hdl', 'glucose', 'hba1c', 'x-quang', 'mri', 'huyết áp'];
+    const labContainer = document.querySelector('.can-lam-sang, .lab-results, table.xet-nghiem');
+    const labText = labContainer ? labContainer.innerText.toLowerCase() : '';
     labKeywords.forEach(kw => {
-      if (docText.toLowerCase().includes(kw)) {
+      if (labText.includes(kw)) {
         labTests.push(kw);
       }
     });
 
+    // E. Detect Procedure Days
     let procedureDays = 1;
     const daysInput = document.querySelector('input[name*="so_ngay" i], input[id*="so_ngay" i], input[name*="days" i]');
     if (daysInput && daysInput.value) {
       procedureDays = parseInt(daysInput.value, 10) || 1;
-    } else {
-      const matchDays = docText.match(/(\d+)\s*(ngày|buổi|đợt)/i);
-      if (matchDays && parseInt(matchDays[1], 10) > 1) {
-        procedureDays = parseInt(matchDays[1], 10);
-      }
     }
 
     return {
@@ -138,7 +134,8 @@
       drugs,
       procedures,
       labTests,
-      procedureDays
+      procedureDays,
+      rxText
     };
   }
 
@@ -146,7 +143,7 @@
     if (!catalog) return null;
 
     const alerts = [];
-    const hospitalLevel = '4';
+    const hospitalLevel = '4'; // Tuyến phòng khám / Trạm y tế
 
     let diseaseName = '';
     if (ctx.icdCode) {
@@ -223,13 +220,13 @@
     });
 
     if (catalog.thuoc_yhct) {
-      const allText = (ctx.drugs.join(' ') + ' ' + ctx.procedures.join(' ') + ' ' + (document.body ? document.body.innerText : '')).toLowerCase();
+      const rxText = ctx.rxText || '';
       catalog.thuoc_yhct.forEach(h => {
         if (h.tuong_tac_tay_y) {
           const herbKey = h.ten_vi_thuoc.split(' ')[0].toLowerCase();
-          if (allText.includes(herbKey)) {
+          if (rxText.includes(herbKey)) {
             if (h.tuong_tac_tay_y.includes('xuất huyết') || h.tuong_tac_tay_y.includes('chống đông')) {
-              if (allText.includes('aspirin') || allText.includes('clopidogrel') || allText.includes('warfarin')) {
+              if (rxText.includes('aspirin') || rxText.includes('clopidogrel') || rxText.includes('warfarin')) {
                 alerts.push({
                   severity: 'HIGH',
                   rule: 'HERB_DRUG_INTERACTION',
