@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HIS-PRO 2026 • Phần Mềm Quản Lý Khám Chữa Bệnh BHYT</title>
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-light: #eff6ff;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --bg: #f1f5f9;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .his-navbar {
+      background: #1e3a8a;
+      color: white;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .his-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .his-logo {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: #2563eb;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    .his-facility {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+    .his-container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 16px;
+    }
+    .his-card {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .his-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .his-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .his-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .his-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .his-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .his-input, .his-select, .his-textarea {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .his-input:focus, .his-textarea:focus {
+      border-color: #2563eb;
+    }
+    .his-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .his-table th, .his-table td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .his-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+    .preset-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-preset {
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .btn-preset-danger {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fca5a5;
+    }
+    .btn-preset-danger:hover { background: #fecaca; }
+    .btn-preset-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fde68a;
+    }
+    .btn-preset-warning:hover { background: #fde68a; }
+    .btn-preset-success {
+      background: #d1fae5;
+      color: #065f46;
+      border-color: #6ee7b7;
+    }
+    .btn-preset-success:hover { background: #a7f3d0; }
+  </style>
+</head>
+<body>
+  <nav class="his-navbar">
+    <div class="his-nav-left">
+      <div class="his-logo">HIS-PRO 2026</div>
+      <div class="his-facility">Cơ sở: <strong>Phòng Khám YHCT Tài Sanh</strong> (Mã KCB: 54-012 • Tuyến 4)</div>
+    </div>
+    <div>
+      <span>Bác sĩ: <strong>BS. CKI Đỗ Thị Anh Thư</strong></span>
+    </div>
+  </nav>
+
+  <div class="his-container">
+    <!-- Presets bar for quick testing -->
+    <div class="preset-bar">
+      <span style="font-size:12px; font-weight:700; align-self:center; color:#64748b;">Kịch Bản Thử Nghiệm BHYT Copilot:</span>
+      <button class="btn-preset btn-preset-danger" id="btnPresetHighRisk">
+        🚨 Kịch bản 1: Xuất Toán Cao (M54.5 + Ceftriaxone Tuyến 4 + 18 Ngày ĐT)
+      </button>
+      <button class="btn-preset btn-preset-warning" id="btnPresetBellPalsy">
+        ⚡ Kịch bản 2: Liệt Dây VII Ngoại Biên (G51.0 - Cần Autofill YHCT)
+      </button>
+      <button class="btn-preset btn-preset-success" id="btnPresetClean">
+        🟢 Kịch bản 3: Hồ Sơ Hợp Chuẩn 100% (Pass BHYT)
+      </button>
+    </div>
+
+    <!-- Patient Info -->
+    <div class="his-card">
+      <div class="his-card-title">
+        <span>1. Thông Tin Tiếp Nhận & Thẻ BHYT</span>
+        <span style="font-size:11px; color:#64748b;">Mã lượt khám: 20261123-0082</span>
+      </div>
+      <div class="his-grid-4">
+        <div class="his-form-group">
+          <label class="his-label">Họ và tên bệnh nhân</label>
+          <input class="his-input" id="patient-name" value="Nguyễn Văn An" readonly>
+        </div>
+        <div class="his-form-group">
+          <label class="his-label">Số thẻ BHYT</label>
+          <input class="his-input" id="bhyt-card" value="GD 4 54 5420198812 (Hưởng 80%)" readonly>
+        </div>
+        <div class="his-form-group">
+          <label class="his-label">Năm sinh / Giới tính</label>
+          <input class="his-input" value="1968 (58 tuổi) / Nam" readonly>
+        </div>
+        <div class="his-form-group">
+          <label class="his-label">Địa chỉ</label>
+          <input class="his-input" value="Phường 5, TP. Tuy Hòa, Tỉnh Phú Yên" readonly>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnosis & ICD-10 -->
+    <div class="his-card">
+      <div class="his-card-title">
+        <span>2. Chẩn Đoán & Mã Bệnh (ICD-10)</span>
+      </div>
+      <div class="his-grid-3">
+        <div class="his-form-group">
+          <label class="his-label">Mã bệnh chính (ICD-10)</label>
+          <input class="his-input icd-input" id="icd10-code" name="ma_icd" value="M54.5" placeholder="VD: M54.5">
+        </div>
+        <div class="his-form-group" style="grid-column: span 2;">
+          <label class="his-label">Tên bệnh chính</label>
+          <input class="his-input" id="ten-benh" name="ten_benh" value="Đau lưng dưới (Low back pain)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Clinical Examination Notes -->
+    <div class="his-card">
+      <div class="his-card-title">
+        <span>3. Khám Lâm Sàng & Diễn Biến Bệnh (1-Click Autofill Target)</span>
+      </div>
+      <div class="his-form-group">
+        <label class="his-label">Quá trình bệnh lý, Triệu chứng cơ năng, Khám thực thể & Biện chứng YHCT</label>
+        <textarea class="his-textarea clinical-note" id="clinical-notes" name="dien_bien_benh" rows="6" placeholder="Bác sĩ có thể bấm '1-Click Điền Bệnh Án Chuẩn BHYT' trên Copilot để tự động hoàn thiện hồ sơ đạt chuẩn Bộ Y tế..."></textarea>
+      </div>
+    </div>
+
+    <!-- Procedures & Techniques -->
+    <div class="his-card">
+      <div class="his-card-title">
+        <span>4. Chỉ Định Thủ Thuật YHCT & Phục Hồi Chức Năng</span>
+        <span>
+          Số ngày chỉ định trong đợt: 
+          <input type="number" id="so-ngay-dieu-tri" name="so_ngay_dieu_tri" value="18" style="width:60px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-weight:700;"> ngày
+        </span>
+      </div>
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:8px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="proc-dien-cham" checked> Điện châm điều trị (TT.YHCT.01)
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="proc-xoa-bop" checked> Xoa bóp bấm huyệt điều trị (TT.YHCT.02)
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="proc-cuu-ngai"> Cứu ngải (hoặc chiếu đèn hồng ngoại) (TT.YHCT.03)
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="proc-keo-nan"> Kéo nắn, kéo dãn cột sống (TT.YHCT.04)
+        </label>
+      </div>
+    </div>
+
+    <!-- Prescription Table -->
+    <div class="his-card">
+      <div class="his-card-title">
+        <span>5. Kê Đơn Thuốc BHYT & Thuốc YHCT</span>
+      </div>
+      <table class="his-table don-thuoc" id="prescriptionTable">
+        <thead>
+          <tr>
+            <th style="width:40px;">STT</th>
+            <th>Tên Thuốc / Hoạt Chất</th>
+            <th>Đường Dùng</th>
+            <th>Liều Lượng & Cách Dùng</th>
+          </tr>
+        </thead>
+        <tbody id="prescriptionTbody">
+          <tr class="drug-row">
+            <td>1</td>
+            <td><strong>Ceftriaxone 1g</strong></td>
+            <td>Tiêm bắp/tĩnh mạch</td>
+            <td>1 lọ/ngày</td>
+          </tr>
+          <tr class="drug-row">
+            <td>2</td>
+            <td><strong>Atorvastatin 20mg</strong></td>
+            <td>Uống</td>
+            <td>1 viên/ngày buổi tối</td>
+          </tr>
+          <tr class="drug-row">
+            <td>3</td>
+            <td><strong>Paracetamol 500mg</strong></td>
+            <td>Uống</td>
+            <td>1 viên x 2 lần/ngày</td>
+          </tr>
+          <tr class="drug-row">
+            <td>4</td>
+            <td><strong>Đan sâm (Radix Salviae miltiorrhizae)</strong> (Bài thuốc YHCT)</td>
+            <td>Sắc uống</td>
+            <td>12g/ngày</td>
+          </tr>
+          <tr class="drug-row">
+            <td>5</td>
+            <td><strong>Aspirin 81mg</strong></td>
+            <td>Uống</td>
+            <td>1 viên/ngày</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Presets handler for testing
+    document.getElementById('btnPresetHighRisk').onclick = () => {
+      document.getElementById('icd10-code').value = 'M54.5';
+      document.getElementById('ten-benh').value = 'Đau lưng dưới';
+      document.getElementById('so-ngay-dieu-tri').value = 18;
+      document.getElementById('proc-dien-cham').checked = true;
+      document.getElementById('proc-xoa-bop').checked = true;
+      document.getElementById('proc-cuu-ngai').checked = false;
+      document.getElementById('clinical-notes').value = '';
+
+      document.getElementById('prescriptionTbody').innerHTML = `
+        <tr class="drug-row"><td>1</td><td><strong>Ceftriaxone 1g</strong></td><td>Tiêm</td><td>1 lọ/ngày</td></tr>
+        <tr class="drug-row"><td>2</td><td><strong>Atorvastatin 20mg</strong></td><td>Uống</td><td>1 viên/ngày</td></tr>
+        <tr class="drug-row"><td>3</td><td><strong>Đan sâm</strong></td><td>Sắc uống</td><td>12g/ngày</td></tr>
+        <tr class="drug-row"><td>4</td><td><strong>Aspirin 81mg</strong></td><td>Uống</td><td>1 viên/ngày</td></tr>
+      `;
+      dispatchChanges();
+    };
+
+    document.getElementById('btnPresetBellPalsy').onclick = () => {
+      document.getElementById('icd10-code').value = 'G51.0';
+      document.getElementById('ten-benh').value = 'Liệt Bell / Liệt dây thần kinh số VII ngoại biên';
+      document.getElementById('so-ngay-dieu-tri').value = 10;
+      document.getElementById('proc-dien-cham').checked = true;
+      document.getElementById('proc-xoa-bop').checked = true;
+      document.getElementById('proc-cuu-ngai').checked = true;
+      document.getElementById('clinical-notes').value = '';
+
+      document.getElementById('prescriptionTbody').innerHTML = `
+        <tr class="drug-row"><td>1</td><td><strong>Paracetamol 500mg</strong></td><td>Uống</td><td>1 viên x 2 lần/ngày</td></tr>
+        <tr class="drug-row"><td>2</td><td><strong>Cam thảo</strong></td><td>Sắc uống</td><td>6g/ngày</td></tr>
+      `;
+      dispatchChanges();
+    };
+
+    document.getElementById('btnPresetClean').onclick = () => {
+      document.getElementById('icd10-code').value = 'M54.5';
+      document.getElementById('ten-benh').value = 'Đau lưng dưới';
+      document.getElementById('so-ngay-dieu-tri').value = 10; // Within 15-day quota
+      document.getElementById('proc-dien-cham').checked = true;
+      document.getElementById('proc-xoa-bop').checked = true;
+      document.getElementById('proc-cuu-ngai').checked = false;
+
+      document.getElementById('prescriptionTbody').innerHTML = `
+        <tr class="drug-row"><td>1</td><td><strong>Meloxicam 7.5mg</strong></td><td>Uống</td><td>1 viên/ngày sau ăn</td></tr>
+        <tr class="drug-row"><td>2</td><td><strong>Esomeprazole 20mg</strong></td><td>Uống</td><td>1 viên/ngày trước ăn sáng</td></tr>
+      `;
+      dispatchChanges();
+    };
+
+    function dispatchChanges() {
+      document.getElementById('icd10-code').dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('icd10-code').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  </script>
+</body>
+</html>

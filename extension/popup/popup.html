@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BHYT Clinical Copilot</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <img src="../icons/icon-48.png" alt="Logo" width="24" height="24">
+        </div>
+        <div class="brand-info">
+          <h1 class="brand-title">BHYT Copilot</h1>
+          <span class="brand-sub">PK YHCT Tài Sanh • Tuyến 4</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="headerStatusDot"></span>
+        <span class="status-label" id="headerStatusLabel">Đang quét...</span>
+      </div>
+    </header>
+
+    <!-- Nav Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="tab-audit">
+        <span class="tab-icon">🩺</span> Giám Sát HIS
+      </button>
+      <button class="nav-tab" data-tab="tab-search">
+        <span class="tab-icon">🔍</span> Tra Cứu
+      </button>
+      <button class="nav-tab" data-tab="tab-settings">
+        <span class="tab-icon">⚙️</span> Cài Đặt
+      </button>
+    </nav>
+
+    <!-- Tab 1: Live Audit -->
+    <main class="tab-content active" id="tab-audit">
+      <div class="audit-summary-card" id="auditSummaryCard">
+        <div class="summary-top">
+          <div class="icd-badge-container">
+            <span class="icd-code-display" id="auditIcdCode">Chưa nhận diện</span>
+            <span class="icd-name-display" id="auditIcdName">Mở phần mềm HIS để quét hồ sơ</span>
+          </div>
+          <span class="risk-badge badge-neutral" id="auditRiskBadge">CHỜ DỮ LIỆU</span>
+        </div>
+        <div class="summary-meta" id="auditMetaRow">
+          <span>Kỹ thuật: <strong id="auditProcCount">0</strong></span>
+          <span>Thuốc: <strong id="auditDrugCount">0</strong></span>
+          <span>Ngày ĐT: <strong id="auditProcDays">1</strong></span>
+        </div>
+      </div>
+
+      <div class="quick-action-container">
+        <button class="btn-autofill-primary" id="btnAutofillCurrentTab">
+          <span class="btn-icon">⚡</span> 1-Click Điền Bệnh Án Chuẩn BHYT
+        </button>
+      </div>
+
+      <div class="section-title">
+        <span>Cảnh Báo Xuất Toán Thời Gian Thực</span>
+        <span class="alert-counter" id="alertCounter">0 cảnh báo</span>
+      </div>
+
+      <div class="alerts-list" id="alertsList">
+        <div class="empty-state">
+          <span class="empty-icon">🛡️</span>
+          <p>Không phát hiện nguy cơ xuất toán trên tab hiện tại hoặc trang web không chứa form bệnh án.</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Tab 2: Catalog Search -->
+    <div class="tab-content" id="tab-search">
+      <div class="search-input-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Tìm mã ICD-10, tên bệnh, hoạt chất, vị thuốc...">
+        <button class="search-clear-btn" id="searchClearBtn">&times;</button>
+      </div>
+
+      <div class="filter-chips">
+        <button class="chip active" data-filter="all">Tất cả</button>
+        <button class="chip" data-filter="icd10">ICD-10</button>
+        <button class="chip" data-filter="thuoc">Thuốc Tây</button>
+        <button class="chip" data-filter="yhct">Vị YHCT</button>
+        <button class="chip" data-filter="thu_thuat">Thủ Thuật</button>
+      </div>
+
+      <div class="search-results-list" id="searchResultsList">
+        <div class="search-placeholder">
+          Nhập từ khóa hoặc mã ICD (VD: M54.5, G51, Ceftriaxone, Đan sâm, Điện châm...)
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Settings & Stats -->
+    <div class="tab-content" id="tab-settings">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-num" id="statAudits">0</span>
+          <span class="stat-label">Lần Giám Sát</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num text-danger" id="statPrevented">0</span>
+          <span class="stat-label">Xuất Toán Chặn Được</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num text-success" id="statAutofilled">0</span>
+          <span class="stat-label">Bệnh Án Autofill</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Tuyến chuyên môn KCB</div>
+            <div class="settings-desc">Phòng khám đa khoa tư nhân / Trạm y tế</div>
+          </div>
+          <span class="settings-pill">Tuyến 4</span>
+        </div>
+
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Tự động cảnh báo xuất toán</div>
+            <div class="settings-desc">Quét DOM và cập nhật badge tab tức thì</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cfgAutoAudit" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Kiểm tra tương tác YHCT & Tây y</div>
+            <div class="settings-desc">Cảnh báo dược liệu gây chảy máu / giảm huyết áp</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="cfgHerbCheck" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="simulator-launcher">
+        <button class="btn-simulator" id="btnOpenSimulator">
+          🖥️ Mở Giả Lập Hệ Thống HIS (Test Bed)
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>BHYT Clinical Copilot v1.0.0</span>
+      <span class="footer-meta">Thông tư 20 & 27/BYT</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

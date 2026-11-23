@@ -1,7 +1,7 @@
 """
-Automated Catalog Sync & Watchdog
-Checks remote checksums, verifies update deltas, and updates the local SQLite catalog.
-Can be executed as a daily/weekly cron job or triggered on-demand via MCP / REST API.
+Automated Catalog Sync & Watchdog for BHYT Clinical Copilot
+Runs on schedule (e.g. daily/weekly cron) or can be invoked on-demand.
+Checks remote datasets, updates SQLite catalog atomically, and maintains audit logs.
 """
 
 import os
@@ -9,37 +9,46 @@ import sys
 import json
 import logging
 from datetime import datetime
+from typing import Dict, Any
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from data_engine.sync_catalog import sync_catalog, DB_PATH, METADATA_PATH
+# Setup paths
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, BASE_DIR)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+from data_engine.updater import check_for_updates, execute_full_sync, get_sync_metadata, DB_PATH, METADATA_PATH
 
-def check_and_update(force=False):
-    logging.info("Initiating BHYT Catalog Auto-Update Check...")
-    
-    if not os.path.exists(METADATA_PATH):
-        logging.info("No prior sync metadata found. Performing initial full sync...")
-        sync_catalog(force=True)
-        return {"updated": True, "reason": "initial_sync"}
-        
-    try:
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            meta = json.load(f)
-    except Exception as e:
-        logging.warning(f"Error reading metadata: {e}. Forcing sync...")
-        sync_catalog(force=True)
-        return {"updated": True, "reason": "metadata_corrupt"}
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("bhyt.cron_updater")
 
-    last_sync = meta.get("last_sync", "")
-    logging.info(f"Current catalog sync timestamp: {last_sync} (ICD codes: {meta.get('icd_count')})")
-    
-    # Run sync to ensure latest catalog updates
-    sync_catalog(force=force)
-    logging.info("Auto-update check completed successfully.")
-    return {"updated": True, "timestamp": datetime.now().isoformat()}
+
+def run_auto_update_job(force: bool = False, create_backup: bool = True) -> Dict[str, Any]:
+    """Execute scheduled check and update if necessary."""
+    logger.info("Running BHYT catalog watchdog check...")
+    update_info = check_for_updates()
+
+    if update_info["update_needed"] or force:
+        logger.info(f"Update needed ({update_info['reason']}). Launching full sync...")
+        sync_result = execute_full_sync(force_download=force, create_backup=create_backup)
+        logger.info("Synchronization succeeded.")
+        return {
+            "action": "SYNC_EXECUTED",
+            "reason": update_info["reason"],
+            "result": sync_result
+        }
+    else:
+        logger.info(f"Catalog is up to date (Last synced: {update_info['last_sync']}). No action required.")
+        return {
+            "action": "SKIPPED_UP_TO_DATE",
+            "last_sync": update_info["last_sync"],
+            "meta": update_info["meta"]
+        }
+
 
 if __name__ == "__main__":
-    force_flag = "--force" in sys.argv
-    res = check_and_update(force=force_flag)
-    print(json.dumps(res, indent=2))
+    force_run = "--force" in sys.argv
+    no_backup = "--no-backup" in sys.argv
+    res = run_auto_update_job(force=force_run, create_backup=not no_backup)
+    print(json.dumps(res, indent=2, ensure_ascii=False))
