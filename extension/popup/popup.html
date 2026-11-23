@@ -79,21 +79,22 @@
 
     <!-- Tab 2: Chatbox AI -->
     <div class="tab-content" id="tab-chat">
-      <div class="chat-quick-chips" style="display:flex; gap:4px; overflow-x:auto; padding-bottom:6px; margin-bottom:8px;">
+      <div class="chat-quick-chips">
         <button class="chip" data-chat-q="Mã M54.5 ở tuyến 4 được kê thuốc gì?">💊 Thuốc M54.5</button>
         <button class="chip" data-chat-q="Bệnh nhân tăng huyết áp có dùng được Cam thảo không?">⚠️ Cam thảo</button>
         <button class="chip" data-chat-q="Điện châm tối đa bao nhiêu ngày trong 1 đợt?">⏱️ Giới hạn ngày</button>
         <button class="chip" data-chat-q="Kê thuốc hạ mỡ máu Atorvastatin cần xét nghiệm gì?">🧪 Statin Lab</button>
+        <button class="chip" data-chat-q="Chứng Tọa cốt phong tương đương mã ICD nào?">🌿 Tọa cốt phong YHCT</button>
       </div>
-      <div class="popup-chat-messages" id="popupChatMessages" style="height:250px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; margin-bottom:8px;">
-        <div class="popup-chat-msg assistant" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; font-size:12px; line-height:1.45;">
+      <div class="popup-chat-messages" id="popupChatMessages">
+        <div class="popup-chat-msg assistant">
           <strong>🩺 Chào Bác sĩ!</strong><br>
           Tôi là Trợ lý Lâm sàng BHYT & YHCT. Bác sĩ cần tra cứu quy chế kê đơn, thủ thuật hay tương tác thuốc nào hôm nay?
         </div>
       </div>
-      <div class="popup-chat-input-bar" style="display:flex; gap:6px;">
+      <div class="popup-chat-input-bar">
         <input type="text" id="popupChatInput" class="search-input" style="margin:0; flex:1;" placeholder="Hỏi BHYT, tương tác thuốc... (Enter)">
-        <button class="btn-autofill-primary" id="popupChatSendBtn" style="width:auto; padding:6px 14px; margin:0; border-radius:8px; font-size:12px;">Gửi</button>
+        <button class="btn-autofill-primary" id="popupChatSendBtn" style="width:auto; padding:8px 14px; margin:0; border-radius:8px; font-size:12px;">Gửi</button>
       </div>
     </div>
 

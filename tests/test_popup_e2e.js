@@ -7,7 +7,7 @@ async function testPopup() {
   const pathToExtension = path.resolve(__dirname, '../extension');
   const screenshotDir = path.resolve(__dirname, '../test_artifacts');
 
-  const context = await chromium.launchPersistentContext('/tmp/bhyt_popup_prof', {
+  const context = await chromium.launchPersistentContext('/tmp/bhyt_popup_prof_' + Date.now(), {
     headless: false,
     ignoreDefaultArgs: ['--disable-extensions'],
     args: [
@@ -69,8 +69,45 @@ async function testPopup() {
   }
   console.log('  -> [PASS] TCM Herb catalog search verified.');
 
-  // 3. Switch to Settings Tab
-  console.log('Switching to Settings tab...');
+  // 3. Switch to AI Clinical Chatbox Tab
+  console.log('\n--- TESTING AI CLINICAL CHATBOX TAB ---');
+  await page.click('button[data-tab="tab-chat"]');
+  await page.waitForTimeout(500);
+
+  // Click quick chip "Cam thảo"
+  console.log('Clicking quick chip "Cam thảo"...');
+  await page.click('button[data-chat-q*="Cam thảo"]');
+  await page.waitForTimeout(1000);
+
+  let chatMsgs = await page.locator('.popup-chat-msg').allInnerTexts();
+  console.log(`Found ${chatMsgs.length} chat messages in popup.`);
+  const lastMsg = chatMsgs[chatMsgs.length - 1];
+  console.log('Chatbot response snippet:', lastMsg.substring(0, 160).replace(/\n/g, ' '));
+  if (!lastMsg.toLowerCase().includes('cam thảo') && !lastMsg.toLowerCase().includes('glycyrrhizin')) {
+    throw new Error('Chatbot response missing Cam Thảo knowledge');
+  }
+  console.log('  -> [PASS] Quick chip Q&A verified.');
+
+  // Type custom question in Chatbox input
+  console.log('Asking custom question: "Đan sâm có dùng chung với Aspirin không?"...');
+  await page.fill('#popupChatInput', 'Đan sâm có dùng chung được với Aspirin không?');
+  await page.click('#popupChatSendBtn');
+  await page.waitForTimeout(1000);
+
+  chatMsgs = await page.locator('.popup-chat-msg').allInnerTexts();
+  const aspirinReply = chatMsgs[chatMsgs.length - 1];
+  console.log('Aspirin response snippet:', aspirinReply.substring(0, 160).replace(/\n/g, ' '));
+  if (!aspirinReply.toLowerCase().includes('xuất huyết') && !aspirinReply.toLowerCase().includes('tiểu cầu')) {
+    throw new Error('Chatbot response missing bleeding risk warning');
+  }
+  console.log('  -> [PASS] Custom question & bleeding warning verified.');
+
+  const snapChat = path.join(screenshotDir, '05_popup_chatbox_verified.png');
+  await page.screenshot({ path: snapChat });
+  console.log(`  -> Screenshot saved: ${snapChat}`);
+
+  // 4. Switch to Settings Tab
+  console.log('\nSwitching to Settings tab...');
   await page.click('button[data-tab="tab-settings"]');
   await page.waitForTimeout(400);
 

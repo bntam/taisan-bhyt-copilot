@@ -267,6 +267,7 @@
     if (!dock) {
       dock = document.createElement('div');
       dock.id = 'bhyt-copilot-dock';
+      dock.dataset.extId = chrome.runtime.id;
       document.body.appendChild(dock);
     }
 

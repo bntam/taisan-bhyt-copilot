@@ -186,8 +186,56 @@ async function runE2ESuite() {
     await page.screenshot({ path: snap3 });
     console.log(`  -> Screenshot saved: ${snap3}`);
 
+    // TEST 8: In-Browser Floating Dock AI Clinical Chatbox (Q&A & 1-Click Snippet)
+    console.log('\n--- TEST 8: Floating Dock AI Clinical Chatbox & 1-Click Snippet Insertion ---');
+    // Open dock card if closed
+    const cardVisible = await page.isVisible('.bhyt-copilot-card');
+    if (!cardVisible) {
+      await page.click('#bhyt-pill-trigger');
+      await page.waitForTimeout(300);
+    }
+
+    // Switch to Chat tab on Floating Dock
+    console.log('  -> Switching to "💬 Hỏi Đáp AI (Chatbox)" tab on Floating Dock...');
+    await page.click('#bhyt-tab-chat-btn');
+    await page.waitForTimeout(400);
+
+    const chatContainer = await page.waitForSelector('.bhyt-chat-container', { timeout: 3000 });
+    if (!chatContainer) throw new Error('.bhyt-chat-container was not rendered');
+
+    // Click quick chip "Cam thảo & Huyết áp"
+    console.log('  -> Clicking quick chip "⚠️ Cam thảo & Huyết áp"...');
+    await page.click('button[data-q*="Cam thảo"]');
+    await page.waitForTimeout(1000);
+
+    let dockChatMsgs = await page.locator('.bhyt-chat-msg').allInnerTexts();
+    console.log(`  -> Found ${dockChatMsgs.length} chat messages in Floating Dock.`);
+    const lastDockMsg = dockChatMsgs[dockChatMsgs.length - 1];
+    console.log('  -> AI reply preview:', lastDockMsg.substring(0, 140).replace(/\n/g, ' '));
+    if (!lastDockMsg.includes('Cam Thảo') && !lastDockMsg.includes('Glycyrrhizin') && !lastDockMsg.includes('hạ áp')) {
+      throw new Error('Floating Dock Chatbox response missing Cam Thao information');
+    }
+    console.log('  -> [PASS] Floating Dock AI response received and rendered.');
+
+    // Click "📋 Điền Đoạn Này Vào Bệnh Án"
+    console.log('  -> Clicking "📋 Điền Đoạn Này Vào Bệnh Án"...');
+    const actionBtn = await page.waitForSelector('.bhyt-chat-action-btn', { timeout: 3000 });
+    await actionBtn.click();
+    await page.waitForTimeout(600);
+
+    const noteAfterSnippet = await page.locator('#clinical-notes').inputValue();
+    console.log('  -> Note updated with snippet preview:', noteAfterSnippet.substring(0, 150).replace(/\n/g, ' '));
+    if (!noteAfterSnippet.includes('LƯU Ý DƯỢC LÂM SÀNG') && !noteAfterSnippet.includes('Cam thảo')) {
+      throw new Error('Clinical note was not updated with AI snippet');
+    }
+    console.log('  -> [PASS] 1-Click AI snippet successfully injected into HIS textarea from Floating Dock.');
+
+    const snapDockChat = path.join(screenshotDir, '06_dock_chatbox_verified.png');
+    await page.screenshot({ path: snapDockChat });
+    console.log(`  -> Screenshot saved: ${snapDockChat}`);
+
     console.log('\n================================================================');
-    console.log('  ✅ ALL 7 END-TO-END VERIFICATION CHECKS PASSED SUCCESSFULLY!   ');
+    console.log('  ✅ ALL 8 END-TO-END VERIFICATION CHECKS PASSED SUCCESSFULLY!   ');
     console.log('================================================================\n');
 
   } catch (err) {

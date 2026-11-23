@@ -175,6 +175,20 @@ TaiSanh BHYT Clinical Copilot employs a decoupled 3-tier hybrid architecture:
 
 ---
 
+### 5. AI Clinical Q&A Chatbox on Extension Popup
+*Interactive clinical consultation answering herb-drug interactions (Cam Thảo, Đan Sâm), prescribing tiers, and 1-click clipboard / HIS snippet insertion:*
+
+![05 Popup Chatbox Verified](test_artifacts/05_popup_chatbox_verified.png)
+
+---
+
+### 6. In-Browser Floating Dock AI Clinical Chatbox on HIS
+*Physicians can consult the AI copilot directly inside their hospital EMR tab and click "Điền Vào Bệnh Án" to inject clinical notes without leaving the page:*
+
+![06 Dock Chatbox Verified](test_artifacts/06_dock_chatbox_verified.png)
+
+---
+
 ## ⚡ Core Functional Modules
 
 | Module | Location | Primary Responsibilities |
