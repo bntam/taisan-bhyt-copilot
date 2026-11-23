@@ -1,0 +1,13 @@
+{
+  "last_sync": "2026-11-23T20:40:41.072321",
+  "db_path": "/root/taisan-bhyt-copilot/data/bhyt_catalog.db",
+  "icd_count": 15827,
+  "version": "1.1.0",
+  "official_sources": [
+    "Thông tư 20/2022/TT-BYT (Thuốc Tân Dược)",
+    "Thông tư 27/2020/TT-BYT (Thuốc YHCT)",
+    "Thông tư 13/2019/TT-BYT (Giá & Định mức Dịch vụ Kỹ thuật)",
+    "Quyết định 4443/QĐ-BYT (Mã hóa bệnh Y học Cổ truyền)",
+    "Quyết định 7603/QĐ-BYT (Bộ mã danh mục dùng chung BHYT)"
+  ]
+}
