@@ -4,6 +4,7 @@ Endpoints:
 - POST /api/validate: Validates prescription & procedures against BHYT & YHCT rules
 - GET  /api/search-icd: Searches 15,827 official Vietnamese ICD-10 codes
 - POST /api/suggest-note: Generates compliant clinical justifications
+- POST /api/chat: Real-time clinical AI Q&A assistant for doctors
 - POST /api/sync-data: Trigger or schedule auto-sync with official sources
 - GET  /api/health: Health check and sync metadata status
 """
@@ -11,14 +12,21 @@ Endpoints:
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import json
 
-from .server import validate_prescription, search_icd10, suggest_clinical_note, check_herb_drug_interaction, DB_PATH
+from .server import (
+    validate_prescription,
+    search_icd10,
+    suggest_clinical_note,
+    check_herb_drug_interaction,
+    ask_clinical_copilot,
+    DB_PATH
+)
 from data_engine.sync_catalog import sync_catalog, METADATA_PATH
 
-app = FastAPI(title="TaiSanh BHYT Clinical Copilot API", version="1.0.0")
+app = FastAPI(title="TaiSanh BHYT Clinical Copilot API", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +48,10 @@ class SuggestNoteRequest(BaseModel):
     icd_code: str
     procedures: List[str] = []
     symptoms: Optional[str] = None
+
+class ChatRequest(BaseModel):
+    message: str
+    context: Optional[Dict[str, Any]] = None
 
 @app.get("/api/health")
 def health():
@@ -78,6 +90,13 @@ def api_suggest_note(req: SuggestNoteRequest):
         icd_code=req.icd_code,
         procedures=req.procedures,
         symptoms=req.symptoms
+    )
+
+@app.post("/api/chat")
+def api_chat(req: ChatRequest):
+    return ask_clinical_copilot(
+        query=req.message,
+        context=req.context
     )
 
 @app.post("/api/sync-data")

@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 bhyt-cli = "data_engine.cli:main"
 bhyt-sync = "scripts.auto_update_cron:main"
+bhyt-mcp = "mcp_server.mcp_stdio:main"
 
 [tool.setuptools.packages.find]
 include = ["data_engine*", "mcp_server*", "scripts*"]

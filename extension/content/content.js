@@ -1,6 +1,7 @@
 /**
  * BHYT Clinical Copilot - Content Script
- * In-Browser DOM Inspector, Live Xuat Toan Audit & 1-Click Clinical Note Autofill
+ * In-Browser DOM Inspector, Live Xuat Toan Audit, 1-Click Clinical Note Autofill
+ * and Clinical AI Q&A Chatbox Drawer (Alt+Q)
  */
 
 (function () {
@@ -15,6 +16,14 @@
   let currentAudit = null;
   let debounceTimer = null;
   let isCardOpen = false;
+  let activeCardTab = 'audit'; // 'audit' | 'chat'
+  let chatHistory = [
+    {
+      sender: 'assistant',
+      text: '### 🩺 Chào Bác sĩ!\nTôi là Trợ lý Lâm sàng BHYT & YHCT. Bác sĩ có thể bấm nhanh câu hỏi gợi ý bên dưới hoặc hỏi bất kỳ thắc mắc nào về quy chế kê đơn, định mức thủ thuật, hay tương tác thuốc.',
+      snippet: null
+    }
+  ];
 
   async function loadCatalog() {
     try {
@@ -70,7 +79,6 @@
     if (catalog && catalog.thuoc_bhyt) {
       catalog.thuoc_bhyt.forEach(d => {
         const name = d.ten_hoat_chat.toLowerCase();
-        // Match full name or primary part
         const primary = name.split('+')[0].trim().split(' ')[0].trim();
         if (rxText.includes(name) || (primary.length > 4 && rxText.includes(primary))) {
           if (!drugs.some(x => x.toLowerCase() === name)) {
@@ -90,7 +98,6 @@
       { name: 'Thủy châm vào huyệt', match: ['thủy châm', 'thuy cham'] }
     ];
 
-    // Check checked checkboxes for procedures
     document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
       const label = cb.closest('label') ? cb.closest('label').innerText : (cb.parentElement ? cb.parentElement.innerText : '');
       procKeywords.forEach(pk => {
@@ -100,7 +107,6 @@
       });
     });
 
-    // Fallback scan in procedure container
     const procContainer = document.querySelector('.thu-thuat, [name*="thu_thuat"], .procedure-section');
     if (procContainer) {
       const pText = procContainer.innerText.toLowerCase();
@@ -264,8 +270,8 @@
       document.body.appendChild(dock);
     }
 
-    if (!audit || (!audit.icdCode && audit.alerts.length === 0)) {
-      dock.innerHTML = '<div class="bhyt-copilot-pill" id="bhyt-pill-trigger"><div class="bhyt-copilot-indicator"></div><span class="bhyt-copilot-title">BHYT Copilot</span><span class="bhyt-copilot-pill-badge">Sẵn sàng</span></div>';
+    if (!audit || (!audit.icdCode && (!audit.alerts || audit.alerts.length === 0))) {
+      dock.innerHTML = '<div class="bhyt-copilot-pill" id="bhyt-pill-trigger"><div class="bhyt-copilot-indicator"></div><span class="bhyt-copilot-title">BHYT Copilot</span><span class="bhyt-copilot-pill-badge">Sẵn sàng (Alt+Q)</span></div>';
       attachPillEvents();
       return;
     }
@@ -289,26 +295,74 @@
 
     let cardHtml = '';
     if (isCardOpen) {
-      cardHtml = '<div class="bhyt-copilot-card">' +
-        '<div class="bhyt-card-header">' +
-          '<div class="bhyt-card-header-title">' +
-            '<div class="bhyt-copilot-indicator ' + statusClass + '"></div>' +
-            '<div><h4>Giám Sát Xuất Toán Thời Gian Thực</h4><span>Phòng khám Tài Sanh • Tuyến 4</span></div>' +
-          '</div>' +
-          '<button class="bhyt-close-btn" id="bhyt-close-card">&times;</button>' +
-        '</div>' +
-        '<div class="bhyt-card-body">' +
-          '<div class="bhyt-context-summary">' +
-            '<div class="bhyt-context-row"><span class="bhyt-context-label">Mã bệnh ICD-10:</span><span class="bhyt-context-value">' + (audit.icdCode || 'Chưa nhập') + ' - ' + audit.diseaseName + '</span></div>' +
-            '<div class="bhyt-context-row"><span class="bhyt-context-label">Thủ thuật YHCT:</span><span class="bhyt-context-value">' + (audit.procedures.join(', ') || 'Không có') + ' (' + audit.procedureDays + ' ngày)</span></div>' +
-            '<div class="bhyt-context-row"><span class="bhyt-context-label">Thuốc kê đơn:</span><span class="bhyt-context-value">' + audit.drugs.length + ' thuốc</span></div>' +
-          '</div>' +
-          '<div class="bhyt-alerts-container">' + alertsHtml + '</div>' +
-        '</div>' +
-        '<div class="bhyt-autofill-section">' +
-          '<button class="bhyt-autofill-btn" id="bhyt-btn-autofill">⚡ 1-Click Điền Bệnh Án Chuẩn BHYT</button>' +
-        '</div>' +
-      '</div>';
+      const activeIcd = audit.icdCode || 'M54.5';
+
+      let bodyContentHtml = '';
+      if (activeCardTab === 'audit') {
+        bodyContentHtml = `
+          <div class="bhyt-context-summary">
+            <div class="bhyt-context-row"><span class="bhyt-context-label">Mã bệnh ICD-10:</span><span class="bhyt-context-value">${audit.icdCode || 'Chưa nhập'} - ${audit.diseaseName}</span></div>
+            <div class="bhyt-context-row"><span class="bhyt-context-label">Thủ thuật YHCT:</span><span class="bhyt-context-value">${audit.procedures.join(', ') || 'Không có'} (${audit.procedureDays} ngày)</span></div>
+            <div class="bhyt-context-row"><span class="bhyt-context-label">Thuốc kê đơn:</span><span class="bhyt-context-value">${audit.drugs.length} thuốc</span></div>
+          </div>
+          <div class="bhyt-alerts-container">${alertsHtml}</div>
+        `;
+      } else {
+        // Chat View
+        const chatMsgsHtml = chatHistory.map((m, idx) => `
+          <div class="bhyt-chat-msg ${m.sender}">
+            ${formatChatText(m.text)}
+            ${m.snippet ? `<div class="bhyt-snippet-box">${m.snippet}</div><button class="bhyt-chat-action-btn" data-snippet-idx="${idx}">📋 Điền Đoạn Này Vào Bệnh Án</button>` : ''}
+          </div>
+        `).join('');
+
+        bodyContentHtml = `
+          <div class="bhyt-chat-container">
+            <div class="bhyt-chat-context-bar">
+              <span>🩺 Ngữ cảnh: <strong>${audit.icdCode || 'Toàn khoa'}</strong> (Tuyến 4 - PK Tư)</span>
+              <span>⚡ RAG Catalog</span>
+            </div>
+            <div class="bhyt-chat-quick-chips">
+              <button class="bhyt-quick-chip" data-q="Mã ${activeIcd} ở tuyến 4 được kê thuốc gì?">💊 Thuốc mã ${activeIcd}</button>
+              <button class="bhyt-quick-chip" data-q="Bệnh nhân tăng huyết áp có dùng được Cam thảo không?">⚠️ Cam thảo & Huyết áp</button>
+              <button class="bhyt-quick-chip" data-q="Điện châm và xoa bóp bấm huyệt tối đa bao nhiêu ngày trong 1 đợt?">⏱️ Giới hạn ngày YHCT</button>
+              <button class="bhyt-quick-chip" data-q="Kê thuốc hạ mỡ máu Atorvastatin cần xét nghiệm gì?">🧪 Cận lâm sàng Statin</button>
+              <button class="bhyt-quick-chip" data-q="Đan sâm có dùng chung được với Aspirin không?">🩸 Đan sâm & Xuất huyết</button>
+            </div>
+            <div class="bhyt-chat-messages" id="bhytChatMessagesList">
+              ${chatMsgsHtml}
+            </div>
+            <div class="bhyt-chat-input-bar">
+              <input type="text" id="bhytChatInput" class="bhyt-chat-input" placeholder="Hỏi BHYT, thuốc, thủ thuật, tương tác... (Enter)">
+              <button class="bhyt-chat-send-btn" id="bhytChatSendBtn">Gửi</button>
+            </div>
+          </div>
+        `;
+      }
+
+      cardHtml = `
+        <div class="bhyt-copilot-card">
+          <div class="bhyt-card-header">
+            <div class="bhyt-card-header-title">
+              <div class="bhyt-copilot-indicator ${statusClass}"></div>
+              <div><h4>BHYT Clinical Copilot</h4><span>Phòng khám Tài Sanh • Tuyến 4</span></div>
+            </div>
+            <button class="bhyt-close-btn" id="bhyt-close-card" title="Đóng (Esc)">&times;</button>
+          </div>
+          <div class="bhyt-card-nav-tabs">
+            <button class="bhyt-card-tab ${activeCardTab === 'audit' ? 'active' : ''}" id="bhyt-tab-audit-btn">🩺 Giám Sát HIS</button>
+            <button class="bhyt-card-tab ${activeCardTab === 'chat' ? 'active' : ''}" id="bhyt-tab-chat-btn">💬 Hỏi Đáp AI (Chatbox)</button>
+          </div>
+          <div class="bhyt-card-body" id="bhytCardBodyMain">
+            ${bodyContentHtml}
+          </div>
+          ${activeCardTab === 'audit' ? `
+            <div class="bhyt-autofill-section">
+              <button class="bhyt-autofill-btn" id="bhyt-btn-autofill">⚡ 1-Click Điền Bệnh Án Chuẩn BHYT</button>
+            </div>
+          ` : ''}
+        </div>
+      `;
     }
 
     dock.innerHTML = '<div class="bhyt-copilot-pill" id="bhyt-pill-trigger">' +
@@ -319,6 +373,16 @@
       '</div>' + cardHtml;
 
     attachPillEvents();
+  }
+
+  function formatChatText(text) {
+    if (!text) return '';
+    return text
+      .replace(/### (.*?)\n/g, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n\n/g, '<p></p>')
+      .replace(/\n/g, '<br>');
   }
 
   function attachPillEvents() {
@@ -338,12 +402,104 @@
       };
     }
 
+    const tabAuditBtn = document.getElementById('bhyt-tab-audit-btn');
+    if (tabAuditBtn) {
+      tabAuditBtn.onclick = () => {
+        activeCardTab = 'audit';
+        renderDock(currentAudit);
+      };
+    }
+
+    const tabChatBtn = document.getElementById('bhyt-tab-chat-btn');
+    if (tabChatBtn) {
+      tabChatBtn.onclick = () => {
+        activeCardTab = 'chat';
+        renderDock(currentAudit);
+        setTimeout(scrollChatToBottom, 100);
+      };
+    }
+
     const autofillBtn = document.getElementById('bhyt-btn-autofill');
     if (autofillBtn) {
       autofillBtn.onclick = () => {
         performClinicalAutofill();
       };
     }
+
+    // Chat events
+    const chatInput = document.getElementById('bhytChatInput');
+    const chatSendBtn = document.getElementById('bhytChatSendBtn');
+    if (chatInput && chatSendBtn) {
+      chatSendBtn.onclick = () => sendUserChatMessage(chatInput.value.trim());
+      chatInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          sendUserChatMessage(chatInput.value.trim());
+        }
+      };
+    }
+
+    // Quick chips
+    document.querySelectorAll('.bhyt-quick-chip').forEach(btn => {
+      btn.onclick = () => {
+        const q = btn.dataset.q;
+        sendUserChatMessage(q);
+      };
+    });
+
+    // Snippet inject buttons
+    document.querySelectorAll('.bhyt-chat-action-btn').forEach(btn => {
+      btn.onclick = () => {
+        const idx = parseInt(btn.dataset.snippetIdx, 10);
+        const msg = chatHistory[idx];
+        if (msg && msg.snippet) {
+          performSnippetAutofill(msg.snippet);
+        }
+      };
+    });
+  }
+
+  function scrollChatToBottom() {
+    const list = document.getElementById('bhytChatMessagesList');
+    if (list) list.scrollTop = list.scrollHeight;
+  }
+
+  function sendUserChatMessage(query) {
+    if (!query) return;
+    const input = document.getElementById('bhytChatInput');
+    if (input) input.value = '';
+
+    chatHistory.push({ sender: 'user', text: query, snippet: null });
+    renderDock(currentAudit);
+    scrollChatToBottom();
+
+    chrome.runtime.sendMessage({
+      type: 'ASK_CHAT_COPILOT',
+      payload: {
+        query,
+        context: {
+          icdCode: currentAudit ? currentAudit.icdCode : '',
+          procedures: currentAudit ? currentAudit.procedures : [],
+          drugs: currentAudit ? currentAudit.drugs : [],
+          hospital_level: '4'
+        }
+      }
+    }, (resp) => {
+      if (resp && resp.success && resp.data) {
+        chatHistory.push({
+          sender: 'assistant',
+          text: resp.data.answer,
+          snippet: resp.data.suggested_snippet
+        });
+      } else {
+        chatHistory.push({
+          sender: 'assistant',
+          text: '⚠️ Không thể kết nối bộ giải đáp lâm sàng: ' + (resp?.error || 'Lỗi không xác định'),
+          snippet: null
+        });
+      }
+      renderDock(currentAudit);
+      scrollChatToBottom();
+    });
   }
 
   function generateClinicalNote(icdCode, procedures) {
@@ -379,7 +535,15 @@
 
   function performClinicalAutofill() {
     const note = generateClinicalNote(currentAudit ? currentAudit.icdCode : '', currentAudit ? currentAudit.procedures : []);
+    injectTextIntoActiveHis(note, 'Đã điền diễn biến bệnh & khám lâm sàng chuẩn BHYT thành công!');
+  }
 
+  function performSnippetAutofill(snippet) {
+    if (!snippet) return;
+    injectTextIntoActiveHis(snippet, 'Đã điền trích dẫn nghiệp vụ vào hồ sơ bệnh án!');
+  }
+
+  function injectTextIntoActiveHis(text, successMsg) {
     const noteSelectors = [
       'textarea[name*="dien_bien" i]', 'textarea[id*="dien_bien" i]',
       'textarea[name*="kham" i]', 'textarea[id*="kham" i]',
@@ -406,9 +570,9 @@
 
     const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
     if (nativeSetter) {
-      nativeSetter.call(targetEl, note);
+      nativeSetter.call(targetEl, text);
     } else {
-      targetEl.value = note;
+      targetEl.value = text;
     }
 
     targetEl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -421,7 +585,7 @@
       targetEl.classList.remove('bhyt-autofill-highlight');
     }, 2500);
 
-    showToast('✅ Đã điền diễn biến bệnh & khám lâm sàng chuẩn BHYT thành công!');
+    showToast('✅ ' + successMsg);
     chrome.runtime.sendMessage({ type: 'RECORD_AUTOFILL_EVENT' });
   }
 
@@ -468,6 +632,15 @@
     }, 300);
   }
 
+  // Keyboard shortcut Alt+Q to toggle drawer
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key.toLowerCase() === 'q') {
+      e.preventDefault();
+      isCardOpen = !isCardOpen;
+      renderDock(currentAudit);
+    }
+  });
+
   document.addEventListener('input', scheduleAudit, true);
   document.addEventListener('change', scheduleAudit, true);
 
@@ -497,6 +670,10 @@
     } else if (message.type === 'GET_DOM_STATE') {
       runAudit();
       sendResponse({ success: true, audit: currentAudit });
+    } else if (message.type === 'TOGGLE_DRAWER') {
+      isCardOpen = !isCardOpen;
+      renderDock(currentAudit);
+      sendResponse({ success: true, isOpen: isCardOpen });
     }
     return true;
   });

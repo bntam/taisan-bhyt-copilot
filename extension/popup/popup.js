@@ -322,7 +322,81 @@
     `).join('');
   }
 
-  // 5. Settings & Statistics
+  // 5. Chatbox Q&A Controller
+  const popupChatInput = document.getElementById('popupChatInput');
+  const popupChatSendBtn = document.getElementById('popupChatSendBtn');
+  const popupChatMessages = document.getElementById('popupChatMessages');
+
+  function sendPopupChatMessage(q) {
+    if (!q) return;
+    if (popupChatInput) popupChatInput.value = '';
+
+    // Append user message
+    const userDiv = document.createElement('div');
+    userDiv.className = 'popup-chat-msg user';
+    userDiv.style.cssText = 'background:#0284c7; color:#fff; align-self:flex-end; border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:4px; max-width:85%;';
+    userDiv.textContent = q;
+    popupChatMessages.appendChild(userDiv);
+    popupChatMessages.scrollTop = popupChatMessages.scrollHeight;
+
+    // Send to background service worker
+    chrome.runtime.sendMessage({
+      type: 'ASK_CHAT_COPILOT',
+      payload: { query: q, context: { hospital_level: '4' } }
+    }, (resp) => {
+      const botDiv = document.createElement('div');
+      botDiv.className = 'popup-chat-msg assistant';
+      botDiv.style.cssText = 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; font-size:12px; line-height:1.45; align-self:flex-start; margin-bottom:4px; max-width:92%;';
+
+      if (resp && resp.success && resp.data) {
+        const d = resp.data;
+        const formatted = d.answer
+          .replace(/### (.*?)\n/g, '<strong style="display:block;margin-bottom:4px;color:#0f172a;">$1</strong>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\n\n/g, '<div style="height:6px;"></div>')
+          .replace(/\n/g, '<br>');
+        
+        let snippetHtml = '';
+        if (d.suggested_snippet) {
+          snippetHtml = `
+            <div style="background:#f1f5f9;border-left:3px solid #0284c7;padding:6px;border-radius:4px;margin-top:6px;font-family:monospace;font-size:11px;">
+              ${d.suggested_snippet}
+            </div>
+            <button class="btn-snippet-copy" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;margin-top:4px;">
+              📋 Sao Chép Đoạn Này
+            </button>
+          `;
+        }
+        botDiv.innerHTML = formatted + snippetHtml;
+
+        const copyBtn = botDiv.querySelector('.btn-snippet-copy');
+        if (copyBtn) {
+          copyBtn.onclick = () => {
+            navigator.clipboard.writeText(d.suggested_snippet);
+            copyBtn.textContent = '✅ Đã Chép!';
+            setTimeout(() => copyBtn.textContent = '📋 Sao Chép Đoạn Này', 2000);
+          };
+        }
+      } else {
+        botDiv.textContent = '⚠️ ' + (resp?.error || 'Không thể kết nối bộ giải đáp lâm sàng.');
+      }
+      popupChatMessages.appendChild(botDiv);
+      popupChatMessages.scrollTop = popupChatMessages.scrollHeight;
+    });
+  }
+
+  if (popupChatSendBtn && popupChatInput) {
+    popupChatSendBtn.addEventListener('click', () => sendPopupChatMessage(popupChatInput.value.trim()));
+    popupChatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendPopupChatMessage(popupChatInput.value.trim());
+    });
+  }
+
+  document.querySelectorAll('[data-chat-q]').forEach(btn => {
+    btn.addEventListener('click', () => sendPopupChatMessage(btn.dataset.chatQ));
+  });
+
+  // 6. Settings & Statistics
   async function loadSettingsAndStats() {
     chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, (resp) => {
       if (resp && resp.config) {
