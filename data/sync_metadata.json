@@ -1,22 +1,25 @@
 {
-  "version": "1.0.0",
-  "last_sync": "2026-11-24T00:59:02.543038",
-  "db_sha256": "0c3925a3603d85b6ee0b0bac1fd4efb633e08a41f36e2e464a06b23bc2386352",
+  "version": "2.0.0",
+  "last_sync": "2026-11-24T10:39:22.538611",
+  "db_sha256": "da479dcf3db7de5c412706f1d66b181e23da0eeb74ec4c323d62a0a346d4e496",
   "remote_etag": "\"53550639057a54dd6ccd91d7af6080f0bc27bab8612313da173ccfe96c3c4258\"",
   "backup_path": null,
   "counts": {
     "icd10": 15827,
-    "thuoc_bhyt": 594,
+    "thuoc_bhyt": 27,
     "thu_thuat_bhyt": 10,
-    "thuoc_yhct": 320,
-    "yhct_icd10_mapping": 155,
-    "xuat_toan_rules": 22
+    "thuoc_yhct": 10,
+    "yhct_icd10_mapping": 5,
+    "xuat_toan_rules": 22,
+    "cskcb": 30
   },
   "sources": [
     "Thông tư 20/2022/TT-BYT (Thuốc Tân Dược)",
     "Thông tư 27/2020/TT-BYT (Thuốc & Vị thuốc YHCT)",
     "Thông tư 13/2019/TT-BYT (Giá & Định mức Dịch vụ Kỹ thuật)",
     "Quyết định 4443/QĐ-BYT (Mã hóa Bệnh học Y học Cổ truyền)",
-    "Danh mục ICD-10 Chuẩn hóa Quốc gia (WHO / Cổng BYT 2019)"
-  ]
+    "Danh mục ICD-10 Chuẩn hóa Quốc gia (WHO / Cổng BYT 2019)",
+    "Danh mục Cơ sở KCB BHYT (mã CSKCB - BHXH Việt Nam)"
+  ],
+  "catalog_version": "c187c38fbc3e5f73"
 }

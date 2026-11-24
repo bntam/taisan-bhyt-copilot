@@ -169,6 +169,39 @@
         </div>
       </div>
 
+      <!-- BYOK Live LLM Settings in Popup -->
+      <div class="settings-group" style="margin-top: 10px;">
+        <div style="font-size: 12px; font-weight: 700; color: #0284c7; margin-bottom: 6px;">🔒 Cài Đặt Live AI Model (BYOK)</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Bật Live LLM API</div>
+            <div class="settings-desc">Tắt: Offline RAG • Bật: Gọi API Model riêng</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="popupLlmToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div style="padding: 6px 12px 10px;">
+          <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;color:#64748b;">Provider Preset:</label>
+          <select id="popupLlmProvider" style="width:100%;padding:4px 6px;font-size:11.5px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:6px;">
+            <option value="openai_compat">OpenAI / Tương thích OpenAI</option>
+            <option value="openrouter">OpenRouter (Claude, GPT, Llama)</option>
+            <option value="gemini">Google Gemini API (Native)</option>
+            <option value="anthropic">Anthropic Claude (Native)</option>
+            <option value="deepseek">DeepSeek API</option>
+            <option value="groq">Groq Cloud (Fast)</option>
+            <option value="ollama">Ollama (Local Offline)</option>
+          </select>
+          <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;color:#64748b;">Base URL & Model:</label>
+          <input type="text" id="popupLlmUrl" placeholder="https://api.openai.com/v1" style="width:100%;padding:4px 6px;font-size:11px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:4px;box-sizing:border-box;">
+          <input type="text" id="popupLlmModel" placeholder="Tên model (VD: gpt-4o-mini)..." style="width:100%;padding:4px 6px;font-size:11px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:4px;box-sizing:border-box;">
+          <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;color:#64748b;">API Key (Bảo mật cục bộ):</label>
+          <input type="password" id="popupLlmKey" placeholder="sk-..." style="width:100%;padding:4px 6px;font-size:11px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:6px;box-sizing:border-box;">
+          <button id="popupBtnSaveLlm" style="width:100%;padding:6px;font-size:11.5px;font-weight:700;background:#0284c7;color:#fff;border:none;border-radius:4px;cursor:pointer;">💾 Lưu Cài Đặt AI</button>
+        </div>
+      </div>
+
       <div class="simulator-launcher">
         <button class="btn-simulator" id="btnOpenSimulator">
           🖥️ Mở Giả Lập Hệ Thống HIS (Test Bed)

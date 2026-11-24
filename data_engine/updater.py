@@ -15,15 +15,44 @@ import urllib.request
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List
 
-from .db import get_connection, init_schema, rebuild_fts_indexes, DB_PATH, DATA_DIR, BACKUP_DIR
+from .db import (
+    get_connection,
+    init_schema,
+    rebuild_fts_indexes,
+    export_extension_catalog,
+    DB_PATH,
+    DATA_DIR,
+    BACKUP_DIR,
+    METADATA_PATH,
+    EXTENSION_CATALOG_PATH,
+    CATALOG_SCHEMA_VERSION,
+)
 from .icd10_sync import parse_and_sync_icd10, ICD10_OFFICIAL_URL, LOCAL_ICD10_CACHE
 from .thuoc_tt20_sync import sync_thuoc_bhyt
 from .thu_thuat_tt13_sync import sync_thu_thuat_bhyt
 from .yhct_tt27_sync import sync_thuoc_yhct, sync_yhct_icd10_mapping
 from .xuat_toan_rules_sync import sync_xuat_toan_rules
+from .cskcb_sync import sync_cskcb
 
 logger = logging.getLogger("bhyt.updater")
-METADATA_PATH = os.path.join(DATA_DIR, "sync_metadata.json")
+
+CATALOG_SOURCES = [
+    "Thông tư 20/2022/TT-BYT (Thuốc Tân Dược)",
+    "Thông tư 27/2020/TT-BYT (Thuốc & Vị thuốc YHCT)",
+    "Thông tư 13/2019/TT-BYT (Giá & Định mức Dịch vụ Kỹ thuật)",
+    "Quyết định 4443/QĐ-BYT (Mã hóa Bệnh học Y học Cổ truyền)",
+    "Danh mục ICD-10 Chuẩn hóa Quốc gia (WHO / Cổng BYT 2019)",
+    "Danh mục Cơ sở KCB BHYT (mã CSKCB - BHXH Việt Nam)",
+]
+COUNTED_TABLES = (
+    "icd10",
+    "thuoc_bhyt",
+    "thu_thuat_bhyt",
+    "thuoc_yhct",
+    "yhct_icd10_mapping",
+    "xuat_toan_rules",
+    "cskcb",
+)
 
 
 def compute_file_sha256(path: str) -> str:
@@ -102,17 +131,11 @@ def get_sync_metadata() -> Dict[str, Any]:
             logger.warning(f"Failed to read metadata file: {e}")
 
     return {
-        "version": "1.0.0",
+        "version": CATALOG_SCHEMA_VERSION,
         "last_sync": None,
         "sha256": None,
         "counts": {},
-        "sources": [
-            "Thông tư 20/2022/TT-BYT (Thuốc Tân Dược)",
-            "Thông tư 27/2020/TT-BYT (Thuốc & Vị thuốc YHCT)",
-            "Thông tư 13/2019/TT-BYT (Giá & Định mức Dịch vụ Kỹ thuật)",
-            "Quyết định 4443/QĐ-BYT (Mã hóa Bệnh học Y học Cổ truyền)",
-            "Danh mục ICD-10 Chuẩn hóa Quốc gia (WHO / Cổng BYT 2019)"
-        ]
+        "sources": list(CATALOG_SOURCES),
     }
 
 
@@ -158,8 +181,19 @@ def check_for_updates() -> Dict[str, Any]:
     }
 
 
-def execute_full_sync(force_download: bool = False, create_backup: bool = True) -> Dict[str, Any]:
-    """Execute complete ingestion pipeline and rebuild indexes."""
+def count_catalog_records(conn: sqlite3.Connection) -> Dict[str, int]:
+    """Row counts for every catalog table."""
+    return {t: conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0] for t in COUNTED_TABLES}
+
+
+def execute_full_sync(
+    force_download: bool = False,
+    create_backup: bool = True,
+    export_catalog: bool = True,
+    catalog_output_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Execute the complete ingestion pipeline, rebuild FTS indexes and re-export
+    the extension catalog bundle (extension/data/catalog.json by default)."""
     logger.info("Starting BHYT Catalog full synchronization...")
     os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -168,83 +202,66 @@ def execute_full_sync(force_download: bool = False, create_backup: bool = True) 
         backup_taken = create_database_backup(DB_PATH)
 
     conn = get_connection(DB_PATH)
-    init_schema(conn)
+    try:
+        init_schema(conn)
 
-    # 1. Sync ICD-10
-    icd_stats = parse_and_sync_icd10(conn, force_download=force_download)
+        stats = {
+            "icd10": parse_and_sync_icd10(conn, force_download=force_download),
+            "thuoc_bhyt": sync_thuoc_bhyt(conn),
+            "thu_thuat_bhyt": sync_thu_thuat_bhyt(conn),
+            "thuoc_yhct": sync_thuoc_yhct(conn),
+            "yhct_icd10_mapping": sync_yhct_icd10_mapping(conn),
+            "xuat_toan_rules": sync_xuat_toan_rules(conn),
+            "cskcb": sync_cskcb(conn),
+        }
+        logger.debug(f"Per-source sync stats: {stats}")
 
-    # 2. Sync Western Drugs
-    drug_stats = sync_thuoc_bhyt(conn)
+        rebuild_fts_indexes(conn)
+        counts = count_catalog_records(conn)
 
-    # 3. Sync Procedures
-    proc_stats = sync_thu_thuat_bhyt(conn)
+        remote_status = check_remote_source_status()
+        db_sha256 = compute_file_sha256(DB_PATH)
+        now_iso = datetime.now().isoformat()
 
-    # 4. Sync TCM Herbs & Mappings
-    yhct_stats = sync_thuoc_yhct(conn)
-    map_stats = sync_yhct_icd10_mapping(conn)
+        conn.execute("""
+        INSERT INTO sync_history (synced_at, source_name, version, record_count, sha256_hash, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (now_iso, "BHYT_MULTI_CATALOG", CATALOG_SCHEMA_VERSION, sum(counts.values()), db_sha256, "SUCCESS"))
+        conn.commit()
+    finally:
+        conn.close()
 
-    # 5. Sync Audit Rules
-    rule_stats = sync_xuat_toan_rules(conn)
-
-    # 6. Rebuild FTS5 Virtual Tables
-    rebuild_fts_indexes(conn)
-
-    # 7. Collect total records count
-    c = conn.cursor()
-    c.execute("SELECT count(*) FROM icd10")
-    total_icd = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM thuoc_bhyt")
-    total_drugs = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM thu_thuat_bhyt")
-    total_procs = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM thuoc_yhct")
-    total_yhct = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM yhct_icd10_mapping")
-    total_maps = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM xuat_toan_rules")
-    total_rules = c.fetchone()[0]
-
-    # Log to sync_history table
-    remote_status = check_remote_source_status()
-    db_sha256 = compute_file_sha256(DB_PATH)
-    now_iso = datetime.now().isoformat()
-
-    c.execute("""
-    INSERT INTO sync_history (synced_at, source_name, version, record_count, sha256_hash, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-    """, (now_iso, "BHYT_MULTI_CATALOG", "1.0.0", total_icd + total_drugs + total_procs + total_yhct, db_sha256, "SUCCESS"))
-    conn.commit()
-    conn.close()
-
-    # Save metadata JSON
     meta = {
-        "version": "1.0.0",
+        "version": CATALOG_SCHEMA_VERSION,
         "last_sync": now_iso,
         "db_sha256": db_sha256,
         "remote_etag": remote_status.get("etag", ""),
         "backup_path": backup_taken,
-        "counts": {
-            "icd10": total_icd,
-            "thuoc_bhyt": total_drugs,
-            "thu_thuat_bhyt": total_procs,
-            "thuoc_yhct": total_yhct,
-            "yhct_icd10_mapping": total_maps,
-            "xuat_toan_rules": total_rules
-        },
-        "sources": [
-            "Thông tư 20/2022/TT-BYT (Thuốc Tân Dược)",
-            "Thông tư 27/2020/TT-BYT (Thuốc & Vị thuốc YHCT)",
-            "Thông tư 13/2019/TT-BYT (Giá & Định mức Dịch vụ Kỹ thuật)",
-            "Quyết định 4443/QĐ-BYT (Mã hóa Bệnh học Y học Cổ truyền)",
-            "Danh mục ICD-10 Chuẩn hóa Quốc gia (WHO / Cổng BYT 2019)"
-        ]
+        "counts": counts,
+        "sources": list(CATALOG_SOURCES),
     }
+
+    catalog_export = None
+    if export_catalog:
+        try:
+            catalog_export = export_extension_catalog(
+                output_path=catalog_output_path or EXTENSION_CATALOG_PATH,
+                db_path=DB_PATH,
+                metadata=meta,
+            )
+            meta["catalog_version"] = catalog_export["catalog_version"]
+            logger.info(f"Exported extension catalog -> {catalog_export['path']} ({catalog_export['size_bytes']} bytes)")
+        except OSError as e:
+            logger.error(f"Extension catalog export failed: {e}")
+            catalog_export = {"error": str(e)}
+
     save_sync_metadata(meta)
 
-    logger.info(f"Sync complete. Total ICD: {total_icd}, Drugs: {total_drugs}, Procedures: {total_procs}, YHCT: {total_yhct}, Rules: {total_rules}")
+    logger.info(f"Sync complete. Counts: {counts}")
     return {
         "status": "SUCCESS",
         "timestamp": now_iso,
-        "counts": meta["counts"],
-        "backup_path": backup_taken
+        "counts": counts,
+        "backup_path": backup_taken,
+        "catalog_export": catalog_export,
     }

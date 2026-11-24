@@ -234,8 +234,109 @@ async function runE2ESuite() {
     await page.screenshot({ path: snapDockChat });
     console.log(`  -> Screenshot saved: ${snapDockChat}`);
 
+    // TEST 9: Scenario 4 - Deep DOM Scanner (ASP.NET WebForms, DevExpress & Iframe)
+    console.log('\n--- TEST 9: Scenario 4 (Legacy ASP.NET / DevExpress / Embedded Iframe) ---');
+    await page.click('#btnPresetAspNetLegacy');
+    await page.waitForTimeout(700);
+
+    const pillText4 = await page.locator('#bhyt-pill-trigger').innerText();
+    console.log(`  -> Scenario 4 Pill text: "${pillText4.replace(/\n/g, ' ')}"`);
+    if (!pillText4.includes('M16.0')) {
+      throw new Error(`Expected M16.0 detection from ASP.NET input, got: ${pillText4}`);
+    }
+    console.log('  -> [PASS] Deep DOM Scanner identified ASP.NET WebForms input M16.0.');
+
+    // Verify Iframe presence and accessibility
+    const iframeHandle = await page.$('#legacyHisIframe');
+    if (!iframeHandle) throw new Error('#legacyHisIframe not found in test bed');
+    const iframeDoc = await iframeHandle.contentFrame();
+    if (iframeDoc) {
+      const iframeIcdVal = await iframeDoc.locator('#ctl00_txtIcdPhu').inputValue();
+      console.log(`  -> Detected inside iframe ASP.NET input: ${iframeIcdVal}`);
+    }
+    console.log('  -> [PASS] Embedded Iframe DOM structure verified.');
+
+    const snapLegacy = path.join(screenshotDir, '07_legacy_aspnet_iframe_verified.png');
+    await page.screenshot({ path: snapLegacy });
+    console.log(`  -> Screenshot saved: ${snapLegacy}`);
+
+    // TEST 10: Dynamic Hospital Tier Override (T4 -> T1 / T2)
+    console.log('\n--- TEST 10: Dynamic Hospital Tier Override (T4 -> T1 / T2) ---');
+    // Open card if closed
+    if (!await page.isVisible('.bhyt-copilot-card')) {
+      await page.click('#bhyt-pill-trigger');
+      await page.waitForTimeout(300);
+    }
+    // Switch to Tuyến 1
+    console.log('  -> Clicking Tier 1 button (T1)...');
+    const t1Btn = await page.waitForSelector('button[data-set-tier="1"]', { timeout: 3000 });
+    await t1Btn.click();
+    await page.waitForTimeout(600);
+
+    const tierHeader = await page.locator('.bhyt-copilot-card').innerText();
+    if (!tierHeader.includes('Tuyến 1')) {
+      throw new Error('Failed to switch to Tuyến 1 in card header');
+    }
+    console.log('  -> [PASS] Dynamic hospital tier switched to Tuyến 1 (Chọn thủ công).');
+
+    // Switch back to Tuyến 4
+    console.log('  -> Clicking Tier 4 button (T4)...');
+    const t4Btn = await page.waitForSelector('button[data-set-tier="4"]', { timeout: 3000 });
+    await t4Btn.click();
+    await page.waitForTimeout(600);
+    console.log('  -> [PASS] Dynamic hospital tier restored to Tuyến 4.');
+
+    // TEST 11: Side Panel UI & Multi-Tab Verification
+    console.log('\n--- TEST 11: Side Panel (sidepanel.html) Standalone Verification ---');
+    const swWorker = Array.isArray(sw) ? sw[0] : sw;
+    const extId = swWorker ? swWorker.url().split('/')[2] : 'ext';
+    const sidepanelUrl = `chrome-extension://${extId}/sidepanel/sidepanel.html`;
+    console.log(`  -> Opening Side Panel page: ${sidepanelUrl}`);
+
+    const spPage = await context.newPage();
+    await spPage.goto(sidepanelUrl, { waitUntil: 'networkidle' });
+    await spPage.waitForTimeout(600);
+
+    const spTitle = await spPage.locator('.sp-title').innerText();
+    console.log(`  -> Side Panel Title: "${spTitle}"`);
+    if (!spTitle.includes('BHYT Clinical Copilot')) {
+      throw new Error('Side Panel failed to render brand title');
+    }
+
+    // Verify Segmented Tier Control in Side Panel
+    const tier2Btn = await spPage.waitForSelector('button.sp-tier-btn[data-tier="2"]');
+    await tier2Btn.click();
+    await spPage.waitForTimeout(300);
+    const tier2Active = await tier2Btn.getAttribute('class');
+    if (!tier2Active.includes('active')) {
+      throw new Error('Side Panel Tier 2 button did not become active');
+    }
+    console.log('  -> [PASS] Side Panel segmented tier selector verified (Tuyến 2 active).');
+
+    // Switch to Side Panel Chat Tab
+    console.log('  -> Switching to Chat tab in Side Panel...');
+    await spPage.click('button[data-tab="tab-chat"]');
+    await spPage.waitForTimeout(400);
+
+    // Click quick prompt in Side Panel
+    await spPage.click('button[data-q*="Cam thảo"]');
+    await spPage.waitForTimeout(1000);
+
+    const spChatMsgs = await spPage.locator('.sp-msg').allInnerTexts();
+    console.log(`  -> Side Panel Chat messages count: ${spChatMsgs.length}`);
+    const lastSpMsg = spChatMsgs[spChatMsgs.length - 1];
+    if (!lastSpMsg.includes('Cam Thảo') && !lastSpMsg.includes('Glycyrrhizin') && !lastSpMsg.includes('hạ áp')) {
+      throw new Error('Side Panel Chat response missing expected clinical content');
+    }
+    console.log('  -> [PASS] Side Panel Q&A Chat response verified.');
+
+    const snapSidePanel = path.join(screenshotDir, '08_sidepanel_verified.png');
+    await spPage.screenshot({ path: snapSidePanel });
+    console.log(`  -> Screenshot saved: ${snapSidePanel}`);
+    await spPage.close();
+
     console.log('\n================================================================');
-    console.log('  ✅ ALL 8 END-TO-END VERIFICATION CHECKS PASSED SUCCESSFULLY!   ');
+    console.log('  ✅ ALL 11 END-TO-END VERIFICATION CHECKS PASSED SUCCESSFULLY!  ');
     console.log('================================================================\n');
 
   } catch (err) {

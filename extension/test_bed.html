@@ -176,6 +176,9 @@
       <button class="btn-preset btn-preset-success" id="btnPresetClean">
         🟢 Kịch bản 3: Hồ Sơ Hợp Chuẩn 100% (Pass BHYT)
       </button>
+      <button class="btn-preset" id="btnPresetAspNetLegacy" style="background:#e0e7ff; color:#3730a3; border-color:#c7d2fe;">
+        🏢 Kịch bản 4: Hệ Thống Cũ (ASP.NET WebForms + DevExpress + Iframe)
+      </button>
     </div>
 
     <!-- Patient Info -->
@@ -305,63 +308,42 @@
         </tbody>
       </table>
     </div>
+
+    <!-- 6. Legacy HIS Iframe & DevExpress Simulation Container -->
+    <div class="his-card" id="legacyContainer" style="border: 1px dashed #6366f1;">
+      <div class="his-card-title" style="color: #4338ca;">
+        <span>6. Mô Phỏng Hệ Thống HIS Cũ (ASP.NET DevExpress & Embedded Iframe)</span>
+        <span style="font-size:11px; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:4px; font-weight:700;">ASP.NET WebForms + Iframe</span>
+      </div>
+      <p style="font-size:12px; color:#64748b; margin-top:0;">
+        Khu vực này chứng minh tính năng Deep DOM Scanner của Copilot: tự động quét xuyên qua thẻ <code>&lt;iframe&gt;</code>, nhận diện input name dạng ASP.NET <code>ctl00$MainContent$...</code> và bảng lưới DevExpress <code>.dxgvTable</code>.
+      </p>
+      <iframe id="legacyHisIframe" style="width: 100%; height: 140px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;" srcdoc="
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>body { font-family: sans-serif; font-size: 12px; margin: 10px; background: #fafafa; color: #1e293b; }</style>
+        </head>
+        <body>
+          <div style='font-weight: bold; color: #1e3a8a; margin-bottom: 6px;'>[Inside Iframe] ASP.NET EMR Sub-form (ctl00$SubContent)</div>
+          <div style='display: flex; gap: 10px; margin-bottom: 8px;'>
+            <div>
+              <label style='font-size: 11px; display: block;'>Mã ICD trong Iframe (ASP.NET: ctl00_txtIcdPhu):</label>
+              <input type='text' id='ctl00_txtIcdPhu' name='ctl00$txtIcdPhu' value='M16.0' style='padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;'>
+            </div>
+            <div style='flex: 1;'>
+              <label style='font-size: 11px; display: block;'>Diễn biến lâm sàng trong Iframe (ctl00_txtDienBienIframe):</label>
+              <textarea id='ctl00_txtDienBienIframe' name='ctl00$txtDienBienIframe' style='width: 95%; height: 45px; border: 1px solid #cbd5e1; border-radius: 4px;' placeholder='Copilot 1-Click Autofill có thể điền trực tiếp vào đây...'></textarea>
+            </div>
+          </div>
+        </body>
+        </html>
+      "></iframe>
+    </div>
   </div>
 
-  <script>
-    // Presets handler for testing
-    document.getElementById('btnPresetHighRisk').onclick = () => {
-      document.getElementById('icd10-code').value = 'M54.5';
-      document.getElementById('ten-benh').value = 'Đau lưng dưới';
-      document.getElementById('so-ngay-dieu-tri').value = 18;
-      document.getElementById('proc-dien-cham').checked = true;
-      document.getElementById('proc-xoa-bop').checked = true;
-      document.getElementById('proc-cuu-ngai').checked = false;
-      document.getElementById('clinical-notes').value = '';
-
-      document.getElementById('prescriptionTbody').innerHTML = `
-        <tr class="drug-row"><td>1</td><td><strong>Ceftriaxone 1g</strong></td><td>Tiêm</td><td>1 lọ/ngày</td></tr>
-        <tr class="drug-row"><td>2</td><td><strong>Atorvastatin 20mg</strong></td><td>Uống</td><td>1 viên/ngày</td></tr>
-        <tr class="drug-row"><td>3</td><td><strong>Đan sâm</strong></td><td>Sắc uống</td><td>12g/ngày</td></tr>
-        <tr class="drug-row"><td>4</td><td><strong>Aspirin 81mg</strong></td><td>Uống</td><td>1 viên/ngày</td></tr>
-      `;
-      dispatchChanges();
-    };
-
-    document.getElementById('btnPresetBellPalsy').onclick = () => {
-      document.getElementById('icd10-code').value = 'G51.0';
-      document.getElementById('ten-benh').value = 'Liệt Bell / Liệt dây thần kinh số VII ngoại biên';
-      document.getElementById('so-ngay-dieu-tri').value = 10;
-      document.getElementById('proc-dien-cham').checked = true;
-      document.getElementById('proc-xoa-bop').checked = true;
-      document.getElementById('proc-cuu-ngai').checked = true;
-      document.getElementById('clinical-notes').value = '';
-
-      document.getElementById('prescriptionTbody').innerHTML = `
-        <tr class="drug-row"><td>1</td><td><strong>Paracetamol 500mg</strong></td><td>Uống</td><td>1 viên x 2 lần/ngày</td></tr>
-        <tr class="drug-row"><td>2</td><td><strong>Cam thảo</strong></td><td>Sắc uống</td><td>6g/ngày</td></tr>
-      `;
-      dispatchChanges();
-    };
-
-    document.getElementById('btnPresetClean').onclick = () => {
-      document.getElementById('icd10-code').value = 'M54.5';
-      document.getElementById('ten-benh').value = 'Đau lưng dưới';
-      document.getElementById('so-ngay-dieu-tri').value = 10; // Within 15-day quota
-      document.getElementById('proc-dien-cham').checked = true;
-      document.getElementById('proc-xoa-bop').checked = true;
-      document.getElementById('proc-cuu-ngai').checked = false;
-
-      document.getElementById('prescriptionTbody').innerHTML = `
-        <tr class="drug-row"><td>1</td><td><strong>Meloxicam 7.5mg</strong></td><td>Uống</td><td>1 viên/ngày sau ăn</td></tr>
-        <tr class="drug-row"><td>2</td><td><strong>Esomeprazole 20mg</strong></td><td>Uống</td><td>1 viên/ngày trước ăn sáng</td></tr>
-      `;
-      dispatchChanges();
-    };
-
-    function dispatchChanges() {
-      document.getElementById('icd10-code').dispatchEvent(new Event('input', { bubbles: true }));
-      document.getElementById('icd10-code').dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  </script>
+  <link rel="stylesheet" href="content/content.css">
+  <script src="test_bed.js"></script>
+  <script src="content/content.js"></script>
 </body>
 </html>

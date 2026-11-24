@@ -10,11 +10,13 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Phiên_Bản-2.0.0-blue?logo=semver" alt="Phiên bản 2.0.0" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?logo=python" alt="Phiên bản Python" />
-  <img src="https://img.shields.io/badge/Chrome_Extension-Manifest_V3-brightgreen?logo=googlechrome" alt="Chrome Extension Manifest V3" />
+  <img src="https://img.shields.io/badge/Chrome_Extension-Side_Panel_MV3-brightgreen?logo=googlechrome" alt="Chrome Extension Side Panel MV3" />
   <img src="https://img.shields.io/badge/MCP-Protocol_2024--11--05-blueviolet?logo=anthropic" alt="MCP Protocol" />
-  <img src="https://img.shields.io/badge/Tests-35%2F35%20PASS%20(100%25)-success?logo=pytest" alt="Kiểm thử 35/35 Pass" />
-  <img src="https://img.shields.io/badge/B%E1%BB%99_Y_T%E1%BA%BF-TT_20%2F2022%20%7C%20TT_27%2F2020%20%7C%20TT_13%2F2019-red" alt="Thông tư Bộ Y Tế" />
+  <img src="https://img.shields.io/badge/Kiểm_Thử-54%2F54%20PASS%20(100%25)-success?logo=pytest" alt="Kiểm thử 54/54 Pass" />
+  <img src="https://img.shields.io/badge/B%E1%BB%99_Y_T%E1%BA%BF-QĐ_130%20%7C%20TT_20%2F2022%20%7C%20TT_27%2F2020-red" alt="Chuẩn Bộ Y Tế" />
+  <img src="https://img.shields.io/badge/Live_LLM-BYOK_M%E1%BB%8Di_Model-purple?logo=openai" alt="BYOK Mọi Model" />
   <img src="https://img.shields.io/badge/ICD--10-15.827_M%C3%A3_FTS5-orange" alt="ICD-10 FTS5" />
   <img src="https://img.shields.io/badge/Xu%E1%BA%A5t_To%C3%A1n_BHYT-Zero_Rejection-emerald" alt="Chống xuất toán" />
   <img src="https://img.shields.io/badge/Gi%E1%BA%A5y_Ph%C3%A9p-MIT-lightgrey" alt="Giấy phép MIT" />

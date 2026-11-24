@@ -426,6 +426,23 @@
   });
 
   // 6. Settings & Statistics
+  const POPUP_LLM_PRESETS = {
+    openai_compat: { url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+    openrouter: { url: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet' },
+    gemini: { url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash' },
+    anthropic: { url: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514' },
+    deepseek: { url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    groq: { url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+    ollama: { url: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:14b' }
+  };
+
+  const popupLlmToggle = document.getElementById('popupLlmToggle');
+  const popupLlmProvider = document.getElementById('popupLlmProvider');
+  const popupLlmUrl = document.getElementById('popupLlmUrl');
+  const popupLlmModel = document.getElementById('popupLlmModel');
+  const popupLlmKey = document.getElementById('popupLlmKey');
+  const popupBtnSaveLlm = document.getElementById('popupBtnSaveLlm');
+
   async function loadSettingsAndStats() {
     chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, (resp) => {
       if (resp && resp.config) {
@@ -436,7 +453,43 @@
 
         cfgAutoAudit.checked = cfg.auto_audit_enabled !== false;
         cfgHerbCheck.checked = cfg.herb_drug_check_enabled !== false;
+
+        const llm = cfg.llm_config || {};
+        if (popupLlmToggle) popupLlmToggle.checked = Boolean(llm.enabled);
+        if (popupLlmProvider && llm.provider) popupLlmProvider.value = llm.provider;
+        if (popupLlmUrl) popupLlmUrl.value = llm.api_url || (POPUP_LLM_PRESETS[popupLlmProvider?.value || 'openai_compat']?.url || '');
+        if (popupLlmModel) popupLlmModel.value = llm.model || (POPUP_LLM_PRESETS[popupLlmProvider?.value || 'openai_compat']?.model || '');
+        if (popupLlmKey) popupLlmKey.value = llm.api_key || '';
       }
+    });
+  }
+
+  if (popupLlmProvider) {
+    popupLlmProvider.addEventListener('change', () => {
+      const preset = POPUP_LLM_PRESETS[popupLlmProvider.value];
+      if (preset) {
+        if (popupLlmUrl) popupLlmUrl.value = preset.url;
+        if (popupLlmModel) popupLlmModel.value = preset.model;
+      }
+    });
+  }
+
+  if (popupBtnSaveLlm) {
+    popupBtnSaveLlm.addEventListener('click', () => {
+      const newLlm = {
+        enabled: Boolean(popupLlmToggle?.checked),
+        provider: popupLlmProvider?.value || 'openai_compat',
+        api_url: popupLlmUrl?.value.trim() || '',
+        api_key: popupLlmKey?.value.trim() || '',
+        model: popupLlmModel?.value.trim() || ''
+      };
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_CONFIG',
+        payload: { llm_config: newLlm }
+      }, (resp) => {
+        popupBtnSaveLlm.textContent = '✅ Đã Lưu Cài Đặt!';
+        setTimeout(() => { popupBtnSaveLlm.textContent = '💾 Lưu Cài Đặt AI'; }, 2000);
+      });
     });
   }
 

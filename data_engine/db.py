@@ -4,12 +4,30 @@ Provides SQLite connection factory, schema creation, safe migrations, FTS5 virtu
 """
 
 import os
+import json
+import hashlib
 import sqlite3
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(REPO_ROOT, "data")
 DB_PATH = os.path.join(DATA_DIR, "bhyt_catalog.db")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+METADATA_PATH = os.path.join(DATA_DIR, "sync_metadata.json")
+EXTENSION_CATALOG_PATH = os.environ.get(
+    "BHYT_EXTENSION_CATALOG_PATH",
+    os.path.join(REPO_ROOT, "extension", "data", "catalog.json"),
+)
+CATALOG_SCHEMA_VERSION = "2.0.0"
+
+# Natural keys used to de-duplicate seed tables (they use AUTOINCREMENT ids, so
+# INSERT OR REPLACE without a unique key silently appended a copy on every sync).
+_NATURAL_KEYS = {
+    "thuoc_bhyt": "COALESCE(ma_hoat_chat, ''), ten_hoat_chat, COALESCE(ham_luong, ''), COALESCE(duong_dung, '')",
+    "thuoc_yhct": "COALESCE(ma_vi_thuoc, ''), ten_vi_thuoc",
+    "yhct_icd10_mapping": "COALESCE(ma_benh_yhct, ''), ten_chung_trang, ma_icd10_tuong_duong",
+}
 
 
 def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
@@ -169,6 +187,21 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
     c.execute("CREATE INDEX IF NOT EXISTS idx_rules_type ON xuat_toan_rules(rule_type)")
 
+    # 6b. Bảng Quy Chuẩn Giám Định XML 130 / QĐ 130/QĐ-BYT
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS xml130_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_code TEXT UNIQUE,
+        category TEXT,
+        table_name TEXT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        legal_basis TEXT
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_xml130_cat ON xml130_rules(category)")
+
     # 7. Bảng Metadata Lịch sử Đồng bộ
     c.execute("""
     CREATE TABLE IF NOT EXISTS sync_history (
@@ -182,7 +215,23 @@ def init_schema(conn: sqlite3.Connection) -> None:
     )
     """)
 
-    # 8. FTS5 Virtual Tables cho tìm kiếm toàn văn siêu tốc
+    # 8. Bảng Danh mục Cơ sở KCB BHYT (mã CSKCB 5 ký tự theo BHXH Việt Nam)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS cskcb (
+        ma_cskcb TEXT PRIMARY KEY,
+        ten_cskcb TEXT NOT NULL,
+        tuyen TEXT NOT NULL,
+        hang_bv TEXT,
+        tinh TEXT,
+        loai_hinh TEXT
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cskcb_tuyen ON cskcb(tuyen)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cskcb_tinh ON cskcb(tinh)")
+
+    dedupe_seed_tables(conn)
+
+    # 9. FTS5 Virtual Tables cho tìm kiếm toàn văn siêu tốc
     c.execute("""
     CREATE VIRTUAL TABLE IF NOT EXISTS icd10_fts USING fts5(
         code,
@@ -223,7 +272,35 @@ def init_schema(conn: sqlite3.Connection) -> None:
     )
     """)
 
+    c.execute("""
+    CREATE VIRTUAL TABLE IF NOT EXISTS cskcb_fts USING fts5(
+        ma_cskcb,
+        ten_cskcb,
+        tinh,
+        loai_hinh,
+        tokenize = 'unicode61 remove_diacritics 2'
+    )
+    """)
+
     conn.commit()
+
+
+def dedupe_seed_tables(conn: sqlite3.Connection) -> Dict[str, int]:
+    """Remove duplicated seed rows (keep the oldest id) and enforce natural-key uniqueness.
+
+    Returns the number of rows removed per table.
+    """
+    c = conn.cursor()
+    removed: Dict[str, int] = {}
+    for table, key_expr in _NATURAL_KEYS.items():
+        c.execute(f"""
+            DELETE FROM {table}
+            WHERE id NOT IN (SELECT MIN(id) FROM {table} GROUP BY {key_expr})
+        """)
+        removed[table] = c.rowcount
+        c.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS uq_{table}_natural ON {table}({key_expr})")
+    conn.commit()
+    return removed
 
 
 def rebuild_fts_indexes(conn: sqlite3.Connection) -> None:
@@ -293,4 +370,139 @@ def rebuild_fts_indexes(conn: sqlite3.Connection) -> None:
     FROM thu_thuat_bhyt
     """)
 
+    c.execute("DROP TABLE IF EXISTS cskcb_fts")
+    c.execute("""
+    CREATE VIRTUAL TABLE cskcb_fts USING fts5(
+        ma_cskcb,
+        ten_cskcb,
+        tinh,
+        loai_hinh,
+        tokenize = 'unicode61 remove_diacritics 2'
+    )
+    """)
+    c.execute("""
+    INSERT INTO cskcb_fts (ma_cskcb, ten_cskcb, tinh, loai_hinh)
+    SELECT ma_cskcb, ten_cskcb, COALESCE(tinh, ''), COALESCE(loai_hinh, '')
+    FROM cskcb
+    """)
+
     conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Extension catalog export (extension/data/catalog.json + /api/catalog-bundle)
+# ---------------------------------------------------------------------------
+
+_ICD_FLAG_COLUMNS = (
+    "not_allowed_primary",
+    "not_recommended_primary",
+    "must_use_subcode",
+    "mortality_coding_only",
+    "female_only",
+    "male_only",
+)
+
+_EXPORT_TABLES = {
+    "thuoc_bhyt": "SELECT * FROM thuoc_bhyt ORDER BY id",
+    "thuoc_yhct": "SELECT * FROM thuoc_yhct ORDER BY id",
+    "thu_thuat_bhyt": "SELECT * FROM thu_thuat_bhyt ORDER BY ma_dich_vu",
+    "cskcb": "SELECT * FROM cskcb ORDER BY tuyen, ma_cskcb",
+    "xuat_toan_rules": "SELECT * FROM xuat_toan_rules ORDER BY id",
+    "xml130_rules": "SELECT * FROM xml130_rules ORDER BY id",
+    "yhct_icd10_mapping": "SELECT * FROM yhct_icd10_mapping ORDER BY id",
+}
+
+
+def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)
+    ).fetchone()
+    return row is not None
+
+
+def _read_metadata_file(path: str = METADATA_PATH) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _export_icd10(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    """ICD-10 rows in the legacy 4-field shape; regulatory flags are added only when set."""
+    rows = []
+    for r in conn.execute("SELECT * FROM icd10 ORDER BY code"):
+        item = {
+            "code": r["code"],
+            "name_vn": r["name_vn"],
+            "name_en": r["name_en"],
+            "chapter_name": r["chapter_name"],
+        }
+        for flag in _ICD_FLAG_COLUMNS:
+            if r[flag]:
+                item[flag] = 1
+        rows.append(item)
+    return rows
+
+
+def build_extension_catalog(db_path: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Build the extension catalog bundle in memory.
+
+    Keeps the v1 keys (version, updated_at, icd10, thuoc_bhyt, thuoc_yhct, thu_thuat_bhyt,
+    xuat_toan_rules) so the shipped extension keeps working, and adds cskcb,
+    yhct_icd10_mapping, sync_metadata, catalog_version and counts.
+    `catalog_version` is a content hash: it only changes when catalog data changes.
+    """
+    conn = get_connection(db_path)
+    try:
+        init_schema(conn)
+        sections: Dict[str, Any] = {"icd10": _export_icd10(conn)}
+        for key, sql in _EXPORT_TABLES.items():
+            sections[key] = [dict(r) for r in conn.execute(sql)] if _table_exists(conn, key) else []
+    finally:
+        conn.close()
+
+    digest = hashlib.sha256(
+        json.dumps(sections, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    meta = metadata if metadata is not None else _read_metadata_file()
+
+    bundle: Dict[str, Any] = {
+        "version": CATALOG_SCHEMA_VERSION,
+        "catalog_version": digest[:16],
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "counts": {k: len(v) for k, v in sections.items()},
+        "sync_metadata": {
+            "version": meta.get("version"),
+            "last_sync": meta.get("last_sync"),
+            "sources": meta.get("sources", []),
+        },
+    }
+    bundle.update(sections)
+    return bundle
+
+
+def export_extension_catalog(
+    output_path: Optional[str] = None,
+    db_path: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Write the compact catalog JSON for the browser extension atomically.
+
+    Returns {path, catalog_version, counts, size_bytes}.
+    """
+    path = output_path or EXTENSION_CATALOG_PATH
+    bundle = build_extension_catalog(db_path=db_path, metadata=metadata)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(bundle, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp_path, path)
+    return {
+        "path": path,
+        "catalog_version": bundle["catalog_version"],
+        "counts": bundle["counts"],
+        "size_bytes": os.path.getsize(path),
+    }

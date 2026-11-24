@@ -26,7 +26,7 @@ try:
         ask_clinical_copilot,
         get_db
     )
-    from data_engine.sync_catalog import sync_catalog
+    from data_engine.updater import execute_full_sync
 except ImportError:
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -38,7 +38,7 @@ except ImportError:
         ask_clinical_copilot,
         get_db
     )
-    from data_engine.sync_catalog import sync_catalog
+    from data_engine.updater import execute_full_sync
 
 SERVER_NAME = "taisan-bhyt-copilot"
 SERVER_VERSION = "1.1.0"
@@ -191,7 +191,7 @@ def handle_tools_call(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             if res.get("suggested_snippet"):
                 content_text += f"\n\n**Mô tả gợi ý:**\n```\n{res['suggested_snippet']}\n```"
         elif name == "sync_catalog_data":
-            res = sync_catalog(force=args.get("force", False))
+            res = execute_full_sync(force_download=bool(args.get("force", False)))
             content_text = json.dumps(res, ensure_ascii=False, indent=2)
         else:
             return {

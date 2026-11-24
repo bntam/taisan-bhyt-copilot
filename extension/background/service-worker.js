@@ -11,6 +11,13 @@ const DEFAULT_CONFIG = {
   herb_drug_check_enabled: true,
   autofill_template_mode: 'standard_moh',
   api_endpoint: 'http://127.0.0.1:8123/api',
+  llm_config: {
+    enabled: false,
+    provider: 'openai_compat',
+    api_url: 'https://api.openai.com/v1',
+    api_key: '',
+    model: 'gpt-4o-mini'
+  },
   stats: {
     total_audits: 0,
     warnings_prevented: 0,
@@ -24,6 +31,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const existing = await chrome.storage.local.get('config');
   if (!existing.config) {
     await chrome.storage.local.set({ config: DEFAULT_CONFIG });
+  }
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    try {
+      await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    } catch (e) {
+      console.warn('[SidePanel] setPanelBehavior error:', e);
+    }
   }
   await chrome.action.setBadgeText({ text: '' });
 });
@@ -123,12 +137,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const { query, context = {} } = message.payload || {};
           const { config = DEFAULT_CONFIG } = await chrome.storage.local.get('config');
           const apiEndpoint = config.api_endpoint || 'http://127.0.0.1:8123/api';
+          const llmCfg = config.llm_config || null;
 
           try {
             const resp = await fetch(`${apiEndpoint}/chat`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: query, context })
+              body: JSON.stringify({
+                message: query,
+                context,
+                use_llm: Boolean(llmCfg && llmCfg.enabled),
+                llm_config: llmCfg
+              })
             });
             if (resp.ok) {
               const data = await resp.json();
@@ -136,7 +156,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               return;
             }
           } catch (e) {
-            console.log('[BHYT Copilot] Local API offline, using built-in offline RAG response');
+            console.log('[BHYT Copilot] Local API offline, checking for direct or offline RAG response');
+          }
+
+          // If user configured a direct OpenAI/Gemini/Anthropic/Ollama URL, try direct browser call if enabled
+          if (llmCfg && llmCfg.enabled && llmCfg.api_url && llmCfg.model) {
+            try {
+              const directRes = await fetchDirectLLM(query, context, llmCfg);
+              if (directRes) {
+                sendResponse({ success: true, data: directRes });
+                return;
+              }
+            } catch (errDirect) {
+              console.warn('[BHYT Copilot] Direct LLM fetch failed:', errDirect);
+            }
           }
 
           // Offline fallback response generator based on query keywords
@@ -238,6 +271,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'TEST_LLM_CONFIG': {
+          const testCfg = message.payload || {};
+          const { config = DEFAULT_CONFIG } = await chrome.storage.local.get('config');
+          const apiEndpoint = config.api_endpoint || 'http://127.0.0.1:8123/api';
+
+          try {
+            const resp = await fetch(`${apiEndpoint}/llm-test`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(testCfg)
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              sendResponse({ success: true, data });
+              return;
+            }
+          } catch (_) {}
+
+          const directTest = await testDirectLLM(testCfg);
+          sendResponse({ success: true, data: directTest });
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: `Unknown message type: ${message.type}` });
       }
@@ -248,3 +304,97 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })();
   return true; // Keep channel open for async response
 });
+
+/**
+ * Direct Client-Side LLM Callers (for standalone use without local python backend)
+ */
+async function fetchDirectLLM(query, context, cfg) {
+  const provider = (cfg.provider || 'openai_compat').toLowerCase();
+  const url = cfg.api_url ? cfg.api_url.replace(/\/+$/, '') : 'https://api.openai.com/v1';
+  const apiKey = cfg.api_key || '';
+  const model = cfg.model || 'gpt-4o-mini';
+
+  const systemPrompt = "Bạn là Trợ lý Lâm sàng & Giám định BHYT AI. Trả lời súc tích, chính xác theo Thông tư 20/2022, TT 27/2020, TT 13/2019 và phác đồ Bộ Y tế. Luôn đính kèm '---SNIPPET---' chứa đoạn tóm tắt bệnh án để bác sĩ điền vào phần mềm HIS.";
+  const userPrompt = `CÂU HỎI BÁC SĨ: ${query}\nNGỮ CẢNH: ${JSON.stringify(context || {})}`;
+
+  if (provider === 'gemini' && !url.includes('/openai')) {
+    const cleanModel = model.replace(/^models\//, '');
+    const geminiUrl = `${url}/models/${cleanModel}:generateContent${apiKey ? `?key=${apiKey}` : ''}`;
+    const resp = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 800 }
+      })
+    });
+    if (!resp.ok) throw new Error(`Gemini HTTP ${resp.status}`);
+    const data = await resp.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return parseLlmOutput(query, text, model, 'gemini', context);
+  }
+
+  // OpenAI-compatible format (OpenAI, OpenRouter, Groq, DeepSeek, Ollama)
+  const completionsUrl = url.endsWith('/chat/completions') ? url : `${url}/chat/completions`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+  const resp = await fetch(completionsUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 800
+    })
+  });
+  if (!resp.ok) throw new Error(`LLM HTTP ${resp.status}`);
+  const data = await resp.json();
+  const text = data.choices?.[0]?.message?.content || '';
+  return parseLlmOutput(query, text, model, provider, context);
+}
+
+function parseLlmOutput(query, text, model, provider, context) {
+  let snippet = '';
+  let answer = text;
+  if (text.includes('---SNIPPET---')) {
+    const parts = text.split('---SNIPPET---');
+    answer = parts[0].trim();
+    snippet = parts[1].trim();
+  }
+  return {
+    query,
+    answer,
+    suggested_snippet: snippet,
+    model,
+    provider,
+    mode: `direct_${provider}`,
+    references: ['Thông tư 20/2022/TT-BYT', 'Thông tư 27/2020/TT-BYT', 'Thông tư 13/2019/TT-BYT'],
+    related_queries: ['Quy định kê đơn BHYT theo phân tuyến', 'Thời gian điều trị thủ thuật ngoại trú']
+  };
+}
+
+async function testDirectLLM(cfg) {
+  try {
+    const res = await fetchDirectLLM('Ping test', {}, cfg);
+    return {
+      ok: true,
+      provider: cfg.provider,
+      model: cfg.model,
+      reply_preview: (res.answer || '').substring(0, 60),
+      error: null
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      provider: cfg.provider,
+      model: cfg.model,
+      reply_preview: '',
+      error: e.message || 'Không thể kết nối API model'
+    };
+  }
+}

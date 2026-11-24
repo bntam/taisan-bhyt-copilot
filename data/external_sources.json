@@ -1,0 +1,48 @@
+{
+  "sources": [
+    {
+      "id": "langcare-mcp",
+      "name": "LangCare Clinical Voice Scribe MCP",
+      "type": "mcp_client",
+      "endpoint": "http://127.0.0.1:8990/mcp",
+      "enabled": false,
+      "description": "Kết nối voice scribe hội thoại bác sĩ - bệnh nhân qua giao thức MCP, nhận transcript và trích xuất SOAP note.",
+      "capabilities": [
+        "voice_to_soap",
+        "transcription",
+        "icd_suggestion"
+      ],
+      "status": "configured",
+      "last_checked": null
+    },
+    {
+      "id": "clinic-inventory-api",
+      "name": "Kho Dược Nội Bộ Phòng Khám",
+      "type": "rest_api",
+      "endpoint": "http://127.0.0.1:8000/api/v1/pharmacy/stock",
+      "enabled": false,
+      "description": "Tra cứu tồn kho thực tế của dược liệu YHCT và thuốc tân dược để đối chiếu trước khi kê đơn.",
+      "capabilities": [
+        "stock_lookup",
+        "batch_expiry"
+      ],
+      "status": "configured",
+      "last_checked": null
+    },
+    {
+      "id": "moh-regulatory-feed",
+      "name": "Cổng Dữ Liệu Thông Tư BYT Trực Tuyến",
+      "type": "rss_feed",
+      "endpoint": "https://moh.gov.vn/api/rss/van-ban-moi",
+      "enabled": true,
+      "description": "Feed cập nhật tự động các văn bản quy phạm pháp luật và thông tư sửa đổi bổ sung về BHYT.",
+      "capabilities": [
+        "circular_updates",
+        "price_changes"
+      ],
+      "status": "active",
+      "last_checked": "2026-11-24T01:37:22.715507"
+    }
+  ],
+  "updated_at": "2026-11-24T10:39:18.960461"
+}

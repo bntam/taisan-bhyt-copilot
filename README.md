@@ -10,11 +10,13 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-2.0.0-blue?logo=semver" alt="Version 2.0.0" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?logo=python" alt="Python Version" />
-  <img src="https://img.shields.io/badge/Chrome_Extension-Manifest_V3-brightgreen?logo=googlechrome" alt="Chrome Extension Manifest V3" />
+  <img src="https://img.shields.io/badge/Chrome_Extension-Side_Panel_MV3-brightgreen?logo=googlechrome" alt="Chrome Extension Side Panel MV3" />
   <img src="https://img.shields.io/badge/MCP-Protocol_2024--11--05-blueviolet?logo=anthropic" alt="MCP Protocol" />
-  <img src="https://img.shields.io/badge/Tests-35%2F35%20PASS%20(100%25)-success?logo=pytest" alt="Tests 35/35 Pass" />
-  <img src="https://img.shields.io/badge/MoH_Vietnam-TT_20%2F2022%20%7C%20TT_27%2F2020%20%7C%20TT_13%2F2019-red" alt="Vietnam MoH Circulars" />
+  <img src="https://img.shields.io/badge/Tests-54%2F54%20PASS%20(100%25)-success?logo=pytest" alt="Tests 54/54 Pass" />
+  <img src="https://img.shields.io/badge/MoH_Vietnam-QĐ_130%20%7C%20TT_20%2F2022%20%7C%20TT_27%2F2020-red" alt="Vietnam MoH Standards" />
+  <img src="https://img.shields.io/badge/Live_LLM-BYOK_Universal-purple?logo=openai" alt="Universal BYOK LLM" />
   <img src="https://img.shields.io/badge/ICD--10-15%2C827_Codes_FTS5-orange" alt="ICD-10 FTS5" />
   <img src="https://img.shields.io/badge/BHYT_Rejection-Zero_Xuất_Toán-emerald" alt="Zero BHYT Rejection" />
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License MIT" />

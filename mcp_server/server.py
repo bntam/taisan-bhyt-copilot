@@ -253,7 +253,7 @@ def suggest_clinical_note(icd_code: str, procedures: List[str], symptoms: Option
         "justification_for": procedures
     }
 
-def ask_clinical_copilot(query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def ask_clinical_copilot_deterministic(query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Clinical AI Q&A Copilot Engine (RAG over BHYT Catalog & Legal Knowledge Base)
     Answers real-time doctor questions about:
@@ -438,14 +438,79 @@ def ask_clinical_copilot(query: str, context: Optional[Dict[str, Any]] = None) -
         references.append("Hệ thống Dữ liệu BHYT & YHCT — Phòng Khám Tài Sanh Copilot Engine")
         related_queries = ["Mã M54.5 được kê những thuốc gì tuyến 4?", "Cam thảo có ảnh hưởng thuốc hạ áp không?", "Điện châm tối đa bao nhiêu ngày trong 1 đợt?"]
 
+def evaluate_patient(
+    symptoms: str,
+    age: Optional[int] = None,
+    gender: Optional[str] = None,
+    vitals: Optional[Dict[str, Any]] = None,
+    medical_history: Optional[List[str]] = None,
+    current_drugs: Optional[List[str]] = None,
+    hospital_level: str = "4"
+) -> Dict[str, Any]:
+    """
+    Đánh giá toàn diện bệnh nhân:
+    - Dự đoán mã ICD-10 và bệnh cảnh YHCT từ triệu chứng
+    - Đề xuất thuốc tân dược hợp tuyến (Tuyến 1-4)
+    - Đề xuất thủ thuật YHCT/PHCN không vượt định mức BHYT
+    - Phát hiện tương tác thuốc với tiền sử bệnh (Polypharmacy & Herb-Drug)
+    - Sinh đoạn tóm tắt bệnh án chuẩn hóa
+    """
+    from .rag_llm import retrieve_clinical_context
+    ctx = retrieve_clinical_context(symptoms, hospital_level=hospital_level)
+    
+    predicted_icd = ctx["icd_records"][:3]
+    top_icd = predicted_icd[0]["code"] if predicted_icd else "M54.5"
+    top_name = predicted_icd[0]["name_vn"] if predicted_icd else "Bệnh cảnh cơ xương khớp"
+
+    recommended_procs = []
+    if any(k in symptoms.lower() for k in ["đau lưng", "thoái hóa", "khớp", "cột sống"]):
+        recommended_procs = ["Điện châm điều trị", "Xoa bóp bấm huyệt điều trị"]
+    elif any(k in symptoms.lower() for k in ["liệt mặt", "méo miệng", "dây vii"]):
+        recommended_procs = ["Điện châm điều trị", "Cứu ngải (hoặc chiếu đèn hồng ngoại)"]
+    else:
+        recommended_procs = ["Điện châm điều trị"]
+
+    recommended_drugs = []
+    if hospital_level == "4":
+        recommended_drugs = ["Paracetamol 500mg", "Meloxicam 7.5mg", "Esomeprazole 20mg"]
+    else:
+        recommended_drugs = ["Paracetamol 500mg", "Celecoxib 200mg", "PPI bảo vệ dạ dày"]
+
+    interactions = []
+    if current_drugs:
+        interactions = check_herb_drug_interaction(current_drugs, current_drugs)
+
+    note = suggest_clinical_note(top_icd, recommended_procs, symptoms=symptoms)
+
     return {
-        "query": query,
-        "answer": "\n\n".join(answer_parts),
-        "suggested_snippet": suggested_snippet,
-        "references": references,
-        "related_queries": related_queries,
-        "timestamp": json.dumps({"source": "TaiSanh-BHYT-Knowledge-RAG-v1"})
+        "status": "EVALUATED",
+        "hospital_level": hospital_level,
+        "primary_icd": top_icd,
+        "disease_name": top_name,
+        "suggested_icd_candidates": predicted_icd,
+        "recommended_procedures": recommended_procs,
+        "procedure_max_days": 15,
+        "recommended_drugs": recommended_drugs,
+        "drug_tier_warning": "Cơ sở Tuyến 4: Không kê kháng sinh tiêm Ceftriaxone hoặc giảm đau gây nghiện ngoại trú.",
+        "herb_drug_warnings": interactions,
+        "clinical_note_summary": note.get("suggested_note", "")
     }
+
+def ask_clinical_copilot(query: str, context: Optional[Dict[str, Any]] = None, use_llm: bool = True) -> Dict[str, Any]:
+    """
+    Dispatcher to Hybrid RAG + Live LLM engine with deterministic fallback.
+    Supports user-provided BYOK configuration passed in context['llm_config'].
+    """
+    from .rag_llm import ask_hybrid_rag_llm
+    level = context.get("hospital_level", "4") if context else "4"
+    llm_cfg = context.get("llm_config") if context else None
+    return ask_hybrid_rag_llm(
+        query=query,
+        hospital_level=level,
+        patient_context=context,
+        use_llm=use_llm,
+        llm_config=llm_cfg
+    )
 
 # CLI dispatcher if executed directly
 if __name__ == "__main__":

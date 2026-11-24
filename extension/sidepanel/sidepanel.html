@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BHYT Clinical Copilot • Side Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="sp-container">
+    <!-- Top Header: Facility & Tier Segmented Control -->
+    <header class="sp-header">
+      <div class="sp-facility-row">
+        <div class="sp-brand">
+          <span class="sp-logo">🩺</span>
+          <div>
+            <div class="sp-title">BHYT Clinical Copilot</div>
+            <div class="sp-facility-name" id="spFacilityName">Phòng Khám YHCT Tài Sanh</div>
+          </div>
+        </div>
+        <div class="sp-status-badge status-pass" id="spGlobalStatus">SẴN SÀNG</div>
+      </div>
+
+      <!-- Segmented Control for Hospital Level (Tuyến 1 - 4) -->
+      <div class="sp-tier-selector-box">
+        <div class="sp-tier-label">
+          <span>Phân tuyến KCB:</span>
+          <span class="sp-tier-source" id="spTierSourceTag">Tự động (54-012)</span>
+        </div>
+        <div class="sp-tier-segmented">
+          <button class="sp-tier-btn" data-tier="1" title="Tuyến 1: Bệnh viện Trung ương / Hạng đặc biệt">Tuyến 1</button>
+          <button class="sp-tier-btn" data-tier="2" title="Tuyến 2: Bệnh viện Tỉnh / Thành phố">Tuyến 2</button>
+          <button class="sp-tier-btn" data-tier="3" title="Tuyến 3: Trung tâm Y tế Quận / Huyện">Tuyến 3</button>
+          <button class="sp-tier-btn active tier-4" data-tier="4" title="Tuyến 4: Phòng khám tư nhân / Trạm y tế">Tuyến 4</button>
+        </div>
+      </div>
+
+      <!-- Active Patient & ICD Context Chip -->
+      <div class="sp-context-chip" id="spContextChip">
+        <div class="sp-context-icd">
+          <span class="icd-tag" id="spIcdTag">M54.5</span>
+          <span class="icd-name" id="spIcdName">Đau lưng dưới (Low back pain)</span>
+        </div>
+        <div class="sp-context-details" id="spContextDetails">
+          <span>BN: <strong>Nguyễn Văn An (58t)</strong></span>
+          <span>Thủ thuật: <strong id="spProcCount">2</strong></span>
+          <span>Thuốc: <strong id="spDrugCount">5</strong></span>
+        </div>
+      </div>
+
+      <!-- Nav Tabs: Audit vs Chat vs Catalog vs Settings -->
+      <nav class="sp-nav-tabs">
+        <button class="sp-tab-btn active" data-tab="tab-audit">
+          <span>🛡️</span> Giám Sát
+          <span class="sp-tab-badge badge-danger" id="spAuditBadge">3</span>
+        </button>
+        <button class="sp-tab-btn" data-tab="tab-chat">
+          <span>💬</span> Hỏi Đáp AI
+        </button>
+        <button class="sp-tab-btn" data-tab="tab-search">
+          <span>🔍</span> Tra Cứu
+        </button>
+        <button class="sp-tab-btn" data-tab="tab-settings">
+          <span>⚙️</span> Cài Đặt AI
+        </button>
+      </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="sp-body">
+      <!-- TAB 1: Live Audit -->
+      <section class="sp-tab-content active" id="tab-audit">
+        <div class="sp-quick-actions">
+          <button class="sp-btn-autofill" id="spBtnAutofill">
+            <span>⚡</span> 1-Click Điền Bệnh Án Chuẩn BHYT
+          </button>
+        </div>
+
+        <div class="sp-alerts-header">
+          <span>Cảnh báo nguy cơ xuất toán BHYT:</span>
+          <span class="sp-alert-summary-count" id="spAlertCount">3 cảnh báo</span>
+        </div>
+
+        <div class="sp-alerts-list" id="spAlertsList">
+          <!-- Injected dynamically -->
+        </div>
+      </section>
+
+      <!-- TAB 2: Hybrid RAG + Live LLM Chatbox -->
+      <section class="sp-tab-content" id="tab-chat">
+        <div class="sp-chat-quick-prompts">
+          <button class="sp-prompt-chip" data-q="Mã {icd} ở Tuyến {tier} được kê những thuốc nào không bị xuất toán?">💊 Thuốc theo mã ICD</button>
+          <button class="sp-prompt-chip" data-q="Bài thuốc có Cam thảo dùng cho bệnh nhân Tăng huyết áp được không?">⚠️ Cam thảo & Huyết áp</button>
+          <button class="sp-prompt-chip" data-q="Điện châm kết hợp Xoa bóp bấm huyệt tối đa bao nhiêu ngày trong 1 đợt điều trị?">⏱️ Giới hạn ngày thủ thuật</button>
+          <button class="sp-prompt-chip" data-q="Kê đơn thuốc hạ mỡ máu Statin bắt buộc cần kết quả xét nghiệm gì?">🧪 Yêu cầu xét nghiệm mỡ máu</button>
+          <button class="sp-prompt-chip" data-q="Đan sâm hoặc Đương quy có dùng chung được với Aspirin/thuốc chống đông không?">🩸 Nguy cơ xuất huyết YHCT</button>
+          <button class="sp-prompt-chip" data-q="Chứng Tọa cốt phong trong YHCT tương đương mã ICD-10 nào theo Quyết định 4443?">🌿 Ánh xạ YHCT QĐ 4443</button>
+        </div>
+
+        <div class="sp-chat-messages" id="spChatMessages">
+          <div class="sp-msg assistant">
+            <div class="sp-msg-header">
+              <span class="sp-msg-avatar">🩺</span>
+              <strong>Trợ Lý Lâm Sàng BHYT</strong>
+              <span class="sp-msg-tag">RAG Catalog + Live AI</span>
+            </div>
+            <div class="sp-msg-body">
+              Chào Bác sĩ! Tôi có thể giải đáp quy định danh mục thuốc theo phân tuyến, cảnh báo tương tác Đông – Tây Y, định mức thủ thuật ngoại trú và hỗ trợ soạn thảo bệnh án chuẩn BHYT. Bác sĩ có thể bấm nhanh câu hỏi mẫu ở trên hoặc gõ câu hỏi bất kỳ.
+            </div>
+          </div>
+        </div>
+
+        <div class="sp-chat-input-box">
+          <input type="text" id="spChatInput" placeholder="Hỏi BHYT, thuốc, thủ thuật, tương tác... (Enter để gửi)">
+          <button id="spChatSendBtn">Gửi</button>
+        </div>
+      </section>
+
+      <!-- TAB 3: Instant Catalog Search -->
+      <section class="sp-tab-content" id="tab-search">
+        <div class="sp-search-bar">
+          <input type="text" id="spSearchInput" placeholder="Tìm kiếm 15,827 mã ICD-10, thuốc, vị YHCT...">
+        </div>
+        <div class="sp-search-filter-chips">
+          <button class="sp-filter-btn active" data-filter="all">Tất cả</button>
+          <button class="sp-filter-btn" data-filter="icd10">ICD-10</button>
+          <button class="sp-filter-btn" data-filter="thuoc">Thuốc Tây</button>
+          <button class="sp-filter-btn" data-filter="yhct">Vị YHCT</button>
+          <button class="sp-filter-btn" data-filter="thu_thuat">Thủ thuật</button>
+        </div>
+        <div class="sp-search-results" id="spSearchResults">
+          <div class="sp-search-empty">Nhập mã bệnh hoặc tên thuốc/vị thuốc để tra cứu tức thì...</div>
+        </div>
+      </section>
+
+      <!-- TAB 4: BYOK Live LLM Settings -->
+      <section class="sp-tab-content" id="tab-settings">
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 11.5px; color: #1e40af; line-height: 1.45;">
+          <strong>🔒 Bảo Mật & Tự Chủ (BYOK):</strong> Bạn có thể sử dụng bất kỳ API Model nào (OpenAI, Gemini, Claude, OpenRouter, DeepSeek, Groq, Ollama). API Key chỉ lưu cục bộ trên trình duyệt của bạn (<code>chrome.storage.local</code>), không bao giờ bị ghi vào log hay gửi ra ngoài.
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Toggle Live LLM -->
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px;">
+            <div>
+              <div style="font-weight: 700; font-size: 12px;">Kích hoạt Live AI Model</div>
+              <div style="font-size: 11px; color: #64748b;">Tắt: Chạy 100% Offline RAG (Không tốn token)</div>
+            </div>
+            <label style="position: relative; display: inline-block; width: 36px; height: 20px;">
+              <input type="checkbox" id="spLlmToggle" style="opacity: 0; width: 0; height: 0;">
+              <span id="spLlmToggleTrack" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .2s; border-radius: 20px;"></span>
+            </label>
+          </div>
+
+          <!-- Provider Select -->
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 3px;">Nhà Cung Cấp (Provider Preset):</label>
+            <select id="spLlmProvider" style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff;">
+              <option value="openai_compat">OpenAI / Tương thích OpenAI (Custom, vLLM)</option>
+              <option value="openrouter">OpenRouter (Mọi mô hình: Claude, GPT, Llama)</option>
+              <option value="gemini">Google Gemini API (Native / AIStudio)</option>
+              <option value="anthropic">Anthropic Claude API (Direct)</option>
+              <option value="deepseek">DeepSeek API (V3 / R1)</option>
+              <option value="groq">Groq Cloud (Llama 3.3 siêu tốc)</option>
+              <option value="ollama">Ollama (Local Offline trên máy phòng khám)</option>
+            </select>
+          </div>
+
+          <!-- API URL -->
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 3px;">API Base URL:</label>
+            <input type="text" id="spLlmBaseUrl" placeholder="https://api.openai.com/v1" style="width: 100%; padding: 6px 8px; font-size: 11.5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+          </div>
+
+          <!-- API Key -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+              <label style="font-size: 11px; font-weight: 700; color: #475569;">API Key:</label>
+              <button id="spBtnToggleKeyView" style="background: none; border: none; font-size: 10.5px; color: #0284c7; cursor: pointer;">Hiện Key</button>
+            </div>
+            <input type="password" id="spLlmApiKey" placeholder="sk-..." style="width: 100%; padding: 6px 8px; font-size: 11.5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+          </div>
+
+          <!-- Model Name -->
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 3px;">Tên Model (Model ID):</label>
+            <input type="text" id="spLlmModel" placeholder="gpt-4o-mini hoặc gemini-2.5-flash..." style="width: 100%; padding: 6px 8px; font-size: 11.5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button id="spBtnTestLlm" style="flex: 1; padding: 8px 10px; font-size: 11.5px; font-weight: 700; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; cursor: pointer;">
+              ⚡ Kiểm Tra Kết Nối
+            </button>
+            <button id="spBtnSaveLlm" style="flex: 1; padding: 8px 10px; font-size: 11.5px; font-weight: 700; background: #0284c7; border: none; border-radius: 6px; color: #ffffff; cursor: pointer;">
+              💾 Lưu Cài Đặt
+            </button>
+          </div>
+
+          <!-- Status Result Alert -->
+          <div id="spLlmStatusBox" style="display: none; padding: 8px 10px; border-radius: 6px; font-size: 11.5px; margin-top: 4px;"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Test Bed Launcher -->
+    <div style="padding: 8px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 8px;">
+      <button id="spBtnOpenTestBed" style="flex: 1; padding: 7px 12px; font-size: 11.5px; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #1e40af; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        🖥️ Mở Giả Lập Hệ Thống HIS (Test Bed)
+      </button>
+    </div>
+
+    <!-- Footer Status -->
+    <footer class="sp-footer">
+      <span id="spCatalogVer">Catalog: v2.0 • 15,827 ICD-10</span>
+      <span class="sp-dot-online">●</span>
+      <span id="spModeStatus">Live DOM Sync: Bật</span>
+    </footer>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

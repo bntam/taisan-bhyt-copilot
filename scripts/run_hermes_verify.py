@@ -37,18 +37,20 @@ def main():
     assert manifest.get("manifest_version") == 3, "manifest_version must be 3"
     assert "background" in manifest and "service_worker" in manifest["background"], "Missing background.service_worker"
     assert "content_scripts" in manifest and len(manifest["content_scripts"]) > 0, "Missing content_scripts"
-    assert manifest.get("action", {}).get("default_popup") == "popup/popup.html", "Missing action.default_popup"
+    assert ("side_panel" in manifest or manifest.get("action", {}).get("default_popup") == "popup/popup.html"), "Missing side_panel or action.default_popup"
 
     for size in ["16", "48", "128"]:
         icon_path = os.path.join(ext_dir, manifest["icons"][size])
         assert os.path.exists(icon_path), f"Missing icon-{size}.png at {icon_path}"
-    print("  -> [PASS] manifest.json schema and real PNG icon assets verified.")
+    print("  -> [PASS] manifest.json schema, side_panel and real PNG icon assets verified.")
 
     # Step 3: Validate JavaScript syntax via node -c
     js_files = [
         os.path.join(ext_dir, "background/service-worker.js"),
         os.path.join(ext_dir, "content/content.js"),
-        os.path.join(ext_dir, "popup/popup.js")
+        os.path.join(ext_dir, "popup/popup.js"),
+        os.path.join(ext_dir, "sidepanel/sidepanel.js"),
+        os.path.join(ext_dir, "test_bed.js")
     ]
     for js in js_files:
         res = subprocess.run(["node", "-c", js], capture_output=True, text=True)

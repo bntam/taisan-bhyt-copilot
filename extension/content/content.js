@@ -17,6 +17,23 @@
   let debounceTimer = null;
   let isCardOpen = false;
   let activeCardTab = 'audit'; // 'audit' | 'chat'
+  let activeTier = '4';
+  let tierSource = 'Tự động';
+  let facilityInfo = { name: 'Phòng Khám YHCT Tài Sanh', code: '54-012', tier: '4' };
+
+  // Load saved tier override if exists
+  try {
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['activeHospitalTier', 'tierSource'], (res) => {
+        if (res && res.activeHospitalTier) {
+          activeTier = res.activeHospitalTier;
+          tierSource = res.tierSource || 'Chọn thủ công';
+          if (currentAudit) runAudit();
+        }
+      });
+    }
+  } catch (_) {}
+
   let chatHistory = [
     {
       sender: 'assistant',
@@ -41,10 +58,46 @@
   }
 
   function extractPageContext() {
-    // A. Detect ICD-10 Code
+    // 0. Detect Facility & Auto-infer Hospital Tier
+    let facilityText = '';
+    const facEl = document.querySelector('.his-facility, .facility-name, .hospital-name, #hospital_name, nav, header');
+    if (facEl) facilityText = facEl.innerText || '';
+    if (!facilityText && document.title) facilityText = document.title;
+
+    const codeMatch = facilityText.match(/(\d{2}[-\.]?\d{3})/);
+    const facCode = codeMatch ? codeMatch[1].replace(/[-\.]/, '') : '';
+    const normFac = facilityText.toLowerCase();
+
+    let autoTier = '4';
+    if (normFac.includes('bạch mai') || normFac.includes('chợ rẫy') || normFac.includes('việt đức') || normFac.includes('trung ương') || normFac.includes('hạng đặc biệt')) {
+      autoTier = '1';
+    } else if (normFac.includes('đa khoa tỉnh') || normFac.includes('bvdk tỉnh') || normFac.includes('sản nhi') || normFac.includes('115') || normFac.includes('gia định')) {
+      autoTier = '2';
+    } else if (normFac.includes('trung tâm y tế') || normFac.includes('ttyt') || normFac.includes('quận') || normFac.includes('huyện')) {
+      autoTier = '3';
+    } else if (normFac.includes('phòng khám') || normFac.includes('trạm y tế') || normFac.includes('pkdk') || normFac.includes('tyt')) {
+      autoTier = '4';
+    }
+
+    if (tierSource !== 'Chọn thủ công') {
+      activeTier = autoTier;
+      tierSource = 'Tự động';
+    }
+
+    facilityInfo = {
+      name: (facEl ? facEl.innerText.split('•')[0].replace(/Cơ sở:/i, '').trim() : '') || 'Cơ sở KCB BHYT',
+      code: facCode,
+      tier: activeTier,
+      source: tierSource
+    };
+
+    // A. Detect ICD-10 Code across ASP.NET WebForms, DevExpress, Telerik and standard HIS
     let icdCode = '';
     const icdSelectors = [
       'input[name*="icd" i]', 'input[id*="icd" i]', 'input[class*="icd" i]',
+      'input[id*="txtICD" i]', 'input[id*="txtChanDoan" i]', 'input[id*="txtMaBenh" i]',
+      'input[name*="ctl00" i][name*="icd" i]', 'input[id*="ctl00" i][id*="icd" i]',
+      '.dxeEditSys input', '.dxic input', '.RadTextBox', '.riTextBox',
       'input[name*="chan_doan" i]', 'input[id*="chan_doan" i]', 'input[name*="ma_benh" i]',
       'select[name*="icd" i]', '.icd-input', '#icd10-code', '[data-field="icd10"]'
     ];
@@ -149,7 +202,7 @@
     if (!catalog) return null;
 
     const alerts = [];
-    const hospitalLevel = '4'; // Tuyến phòng khám / Trạm y tế
+    const hospitalLevel = activeTier; // Dynamic hospital tier (1, 2, 3, or 4)
 
     let diseaseName = '';
     if (ctx.icdCode) {
@@ -346,9 +399,18 @@
           <div class="bhyt-card-header">
             <div class="bhyt-card-header-title">
               <div class="bhyt-copilot-indicator ${statusClass}"></div>
-              <div><h4>BHYT Clinical Copilot</h4><span>Phòng khám Tài Sanh • Tuyến 4</span></div>
+              <div><h4>BHYT Clinical Copilot</h4><span>${facilityInfo.name}</span></div>
             </div>
             <button class="bhyt-close-btn" id="bhyt-close-card" title="Đóng (Esc)">&times;</button>
+          </div>
+          <div style="background:#f1f5f9; padding:4px 12px; display:flex; align-items:center; justify-content:space-between; font-size:11px; border-bottom:1px solid #e2e8f0;">
+            <span style="color:#64748b;">Phân tuyến: <strong>Tuyến ${activeTier}</strong> (${tierSource})</span>
+            <div style="display:flex; gap:3px;">
+              <button class="bhyt-tier-btn-sm ${activeTier==='1'?'active':''}" data-set-tier="1" style="border:1px solid #cbd5e1; background:${activeTier==='1'?'#dc2626':'#fff'}; color:${activeTier==='1'?'#fff':'#334155'}; border-radius:3px; padding:1px 5px; font-size:10px; font-weight:700; cursor:pointer;">T1</button>
+              <button class="bhyt-tier-btn-sm ${activeTier==='2'?'active':''}" data-set-tier="2" style="border:1px solid #cbd5e1; background:${activeTier==='2'?'#d97706':'#fff'}; color:${activeTier==='2'?'#fff':'#334155'}; border-radius:3px; padding:1px 5px; font-size:10px; font-weight:700; cursor:pointer;">T2</button>
+              <button class="bhyt-tier-btn-sm ${activeTier==='3'?'active':''}" data-set-tier="3" style="border:1px solid #cbd5e1; background:${activeTier==='3'?'#2563eb':'#fff'}; color:${activeTier==='3'?'#fff':'#334155'}; border-radius:3px; padding:1px 5px; font-size:10px; font-weight:700; cursor:pointer;">T3</button>
+              <button class="bhyt-tier-btn-sm ${activeTier==='4'?'active':''}" data-set-tier="4" style="border:1px solid #cbd5e1; background:${activeTier==='4'?'#059669':'#fff'}; color:${activeTier==='4'?'#fff':'#334155'}; border-radius:3px; padding:1px 5px; font-size:10px; font-weight:700; cursor:pointer;">T4</button>
+            </div>
           </div>
           <div class="bhyt-card-nav-tabs">
             <button class="bhyt-card-tab ${activeCardTab === 'audit' ? 'active' : ''}" id="bhyt-tab-audit-btn">🩺 Giám Sát HIS</button>
@@ -426,6 +488,20 @@
         performClinicalAutofill();
       };
     }
+
+    // Tier Selector in Drawer Header
+    document.querySelectorAll('.bhyt-tier-btn-sm').forEach(btn => {
+      btn.onclick = () => {
+        activeTier = btn.dataset.setTier;
+        tierSource = 'Chọn thủ công';
+        try {
+          if (chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ activeHospitalTier: activeTier, tierSource });
+          }
+        } catch (_) {}
+        runAudit();
+      };
+    });
 
     // Chat events
     const chatInput = document.getElementById('bhytChatInput');
@@ -671,9 +747,19 @@
     } else if (message.type === 'INJECT_SNIPPET') {
       performSnippetAutofill(message.snippet);
       sendResponse({ success: true });
+    } else if (message.type === 'SET_HOSPITAL_TIER') {
+      activeTier = message.tier;
+      tierSource = 'Chọn thủ công';
+      try {
+        if (chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ activeHospitalTier: activeTier, tierSource });
+        }
+      } catch (_) {}
+      runAudit();
+      sendResponse({ success: true, audit: currentAudit, facility: facilityInfo });
     } else if (message.type === 'GET_DOM_STATE') {
       runAudit();
-      sendResponse({ success: true, audit: currentAudit });
+      sendResponse({ success: true, audit: currentAudit, facility: facilityInfo });
     } else if (message.type === 'TOGGLE_DRAWER') {
       isCardOpen = !isCardOpen;
       renderDock(currentAudit);
