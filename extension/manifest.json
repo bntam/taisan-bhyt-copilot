@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BHYT Clinical Copilot - Phòng Khám Tài Sanh",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Trợ lý AI trên trình duyệt & Side Panel cho bác sĩ: Tự động xác định tuyến KCB, cảnh báo xuất toán thời gian thực, Hybrid RAG + Live LLM Q&A và 1-click clinical note autofill cho hệ thống HIS.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -27,7 +27,8 @@
     "activeTab",
     "tabs",
     "alarms",
-    "sidePanel"
+    "sidePanel",
+    "scripting"
   ],
   "host_permissions": [
     "<all_urls>"

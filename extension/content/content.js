@@ -316,6 +316,7 @@
   }
 
   function renderDock(audit) {
+    if (window !== window.top) return;
     let dock = document.getElementById('bhyt-copilot-dock');
     if (!dock) {
       dock = document.createElement('div');
@@ -610,60 +611,186 @@
            'CHỈ ĐỊNH ĐIỀU TRỊ: Chỉ định thủ thuật phục hồi chức năng và thuốc điều trị nội khoa ngoại trú đúng theo phác đồ quy chuẩn của Bộ Y tế.';
   }
 
+  function getAccessibleDocuments() {
+    const docs = [document];
+    const seen = new Set([document]);
+    function walk(doc) {
+      try {
+        const frames = doc.querySelectorAll('iframe, frame');
+        for (const frame of frames) {
+          try {
+            const subDoc = frame.contentDocument || frame.contentWindow?.document;
+            if (subDoc && !seen.has(subDoc)) {
+              seen.add(subDoc);
+              docs.push(subDoc);
+              walk(subDoc);
+            }
+          } catch (_) {
+            // Cross-origin iframe - ignore silently
+          }
+        }
+      } catch (_) {}
+    }
+    walk(document);
+    return docs;
+  }
+
+  function isFieldEditableAndVisible(el) {
+    if (!el || el.disabled || el.readOnly) return false;
+    try {
+      const win = el.ownerDocument?.defaultView || window;
+      const style = win.getComputedStyle(el);
+      if (!style || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return false;
+      }
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    } catch (_) {
+      return el.offsetParent !== null;
+    }
+  }
+
   function performClinicalAutofill() {
-    const note = generateClinicalNote(currentAudit ? currentAudit.icdCode : '', currentAudit ? currentAudit.procedures : []);
-    injectTextIntoActiveHis(note, 'Đã điền diễn biến bệnh & khám lâm sàng chuẩn BHYT thành công!');
+    let icdCode = currentAudit ? currentAudit.icdCode : '';
+    let procedures = currentAudit ? currentAudit.procedures : [];
+    if (!icdCode) {
+      try {
+        const freshCtx = extractPageContext();
+        icdCode = freshCtx.icdCode || '';
+        procedures = freshCtx.procedures || [];
+      } catch (_) {}
+    }
+    const note = generateClinicalNote(icdCode, procedures);
+    return injectTextIntoActiveHis(note, 'Đã điền diễn biến bệnh & khám lâm sàng chuẩn BHYT thành công!');
   }
 
   function performSnippetAutofill(snippet) {
-    if (!snippet) return;
-    injectTextIntoActiveHis(snippet, 'Đã điền trích dẫn nghiệp vụ vào hồ sơ bệnh án!');
+    if (!snippet) return { filled: false, error: 'Nội dung chèn trống' };
+    return injectTextIntoActiveHis(snippet, 'Đã điền trích dẫn nghiệp vụ vào hồ sơ bệnh án!');
   }
 
   function injectTextIntoActiveHis(text, successMsg) {
+    const docs = getAccessibleDocuments();
     const noteSelectors = [
       'textarea[name*="dien_bien" i]', 'textarea[id*="dien_bien" i]',
+      'textarea[name*="dienBien" i]', 'textarea[id*="dienBien" i]',
       'textarea[name*="kham" i]', 'textarea[id*="kham" i]',
       'textarea[name*="lam_sang" i]', 'textarea[id*="lam_sang" i]',
-      'textarea[name*="clinical" i]', 'textarea[id*="clinical" i]',
+      'textarea[name*="benh_su" i]', 'textarea[id*="benh_su" i]',
+      'textarea[name*="ly_do" i]', 'textarea[id*="ly_do" i]',
+      'textarea[name*="tom_tat" i]', 'textarea[id*="tom_tat" i]',
       'textarea[name*="mo_ta" i]', 'textarea[id*="mo_ta" i]',
-      'textarea[name*="tom_tat" i]', 'textarea.clinical-note',
-      '#clinical-notes', '#medical-record-text', 'textarea'
+      'textarea[name*="clinical" i]', 'textarea[id*="clinical" i]',
+      'textarea[name*="note" i]', 'textarea[id*="note" i]',
+      'textarea.clinical-note', '#clinical-notes', '#medical-record-text',
+      'textarea',
+      '[contenteditable="true"][name*="dien_bien" i]',
+      '[contenteditable="true"][id*="dien_bien" i]',
+      '[contenteditable="true"][id*="clinical" i]',
+      '[contenteditable="true"]',
+      'input[type="text"][name*="dien_bien" i]',
+      'input[type="text"][id*="dien_bien" i]',
+      'input[type="text"][name*="kham" i]',
+      'input[type="text"][id*="kham" i]',
+      'input[type="text"][name*="ly_do" i]'
     ];
 
     let targetEl = null;
-    for (const sel of noteSelectors) {
-      const el = document.querySelector(sel);
-      if (el && el.offsetParent !== null) {
-        targetEl = el;
-        break;
+
+    // Priority 1: Currently focused editable element across accessible docs
+    for (const doc of docs) {
+      try {
+        const active = doc.activeElement;
+        if (active && (
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable ||
+          (active.tagName === 'INPUT' && /^(text|search|)$/i.test(active.type || ''))
+        ) && isFieldEditableAndVisible(active)) {
+          targetEl = active;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    // Priority 2: Best matching selector in main document & same-origin iframes
+    if (!targetEl) {
+      for (const sel of noteSelectors) {
+        for (const doc of docs) {
+          try {
+            const candidates = doc.querySelectorAll(sel);
+            for (const el of candidates) {
+              if (el.closest && el.closest('#bhyt-copilot-dock')) continue;
+              if (isFieldEditableAndVisible(el)) {
+                targetEl = el;
+                break;
+              }
+            }
+          } catch (_) {}
+          if (targetEl) break;
+        }
+        if (targetEl) break;
+      }
+    }
+
+    // Priority 3: Rich-text editor iframe body (TinyMCE / CKEditor classic)
+    if (!targetEl) {
+      for (const doc of docs) {
+        try {
+          if (doc !== document && doc.body && doc.body.isContentEditable) {
+            targetEl = doc.body;
+            break;
+          }
+        } catch (_) {}
       }
     }
 
     if (!targetEl) {
       showToast('⚠️ Không tìm thấy ô nhập Diễn biến/Khám bệnh trên trang này');
-      return;
+      return {
+        filled: false,
+        text,
+        error: 'Không tìm thấy ô nhập Diễn biến/Khám bệnh trên trang hiện tại'
+      };
     }
 
-    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
-    if (nativeSetter) {
-      nativeSetter.call(targetEl, text);
+    const docWin = targetEl.ownerDocument?.defaultView || window;
+    if (targetEl.isContentEditable && targetEl.tagName !== 'TEXTAREA' && targetEl.tagName !== 'INPUT') {
+      targetEl.focus();
+      targetEl.innerText = text;
     } else {
-      targetEl.value = text;
+      const proto = targetEl.tagName === 'TEXTAREA'
+        ? docWin.HTMLTextAreaElement?.prototype
+        : docWin.HTMLInputElement?.prototype;
+      const nativeSetter = proto ? Object.getOwnPropertyDescriptor(proto, 'value')?.set : null;
+      if (nativeSetter) {
+        nativeSetter.call(targetEl, text);
+      } else {
+        targetEl.value = text;
+      }
     }
 
     targetEl.dispatchEvent(new Event('input', { bubbles: true }));
     targetEl.dispatchEvent(new Event('change', { bubbles: true }));
     targetEl.dispatchEvent(new Event('blur', { bubbles: true }));
 
-    targetEl.classList.add('bhyt-autofill-highlight');
-    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => {
-      targetEl.classList.remove('bhyt-autofill-highlight');
-    }, 2500);
+    try {
+      targetEl.classList.add('bhyt-autofill-highlight');
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        try { targetEl.classList.remove('bhyt-autofill-highlight'); } catch (_) {}
+      }, 2500);
+    } catch (_) {}
 
     showToast('✅ ' + successMsg);
-    chrome.runtime.sendMessage({ type: 'RECORD_AUTOFILL_EVENT' });
+    try {
+      chrome.runtime.sendMessage({ type: 'RECORD_AUTOFILL_EVENT' });
+    } catch (_) {}
+
+    return {
+      filled: true,
+      targetId: targetEl.id || targetEl.name || targetEl.tagName,
+      text
+    };
   }
 
   function showToast(msg) {
@@ -741,12 +868,15 @@
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (window !== window.top) {
+      return false;
+    }
     if (message.type === 'TRIGGER_AUTOFILL') {
-      performClinicalAutofill();
-      sendResponse({ success: true });
+      const res = performClinicalAutofill();
+      sendResponse({ success: Boolean(res?.filled), ...res });
     } else if (message.type === 'INJECT_SNIPPET') {
-      performSnippetAutofill(message.snippet);
-      sendResponse({ success: true });
+      const res = performSnippetAutofill(message.snippet);
+      sendResponse({ success: Boolean(res?.filled), ...res });
     } else if (message.type === 'SET_HOSPITAL_TIER') {
       activeTier = message.tier;
       tierSource = 'Chọn thủ công';

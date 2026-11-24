@@ -31,7 +31,7 @@
   // Search Tab Elements
   const searchInput = document.getElementById('searchInput');
   const searchClearBtn = document.getElementById('searchClearBtn');
-  const filterChips = document.querySelectorAll('.chip');
+  const filterChips = document.querySelectorAll('.filter-chips .chip');
   const searchResultsList = document.getElementById('searchResultsList');
 
   // Settings Tab Elements
@@ -167,23 +167,55 @@
   }
 
   // 3. 1-Click Autofill Trigger
+  function sendTabMsgAsync(tabId, msg, opts) {
+    return new Promise((resolve) => {
+      const cb = (resp) => {
+        if (chrome.runtime.lastError) {
+          resolve({ __error: chrome.runtime.lastError.message });
+        } else {
+          resolve(resp || {});
+        }
+      };
+      if (opts) chrome.tabs.sendMessage(tabId, msg, opts, cb);
+      else chrome.tabs.sendMessage(tabId, msg, cb);
+    });
+  }
+
   btnAutofillCurrentTab.addEventListener('click', async () => {
-    if (!currentActiveTabId) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab) currentActiveTabId = tab.id;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return;
+    currentActiveTabId = tab.id;
+
+    btnAutofillCurrentTab.disabled = true;
+    btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⏳</span> Đang điền bệnh án...';
+
+    let response = await sendTabMsgAsync(tab.id, { type: 'TRIGGER_AUTOFILL' }, { frameId: 0 });
+    if (response.__error && tab.url && /^(https?|file):/i.test(tab.url) && chrome.scripting) {
+      try {
+        await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content/content.css'] }).catch(() => {});
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content/content.js'] });
+        await new Promise(r => setTimeout(r, 250));
+        response = await sendTabMsgAsync(tab.id, { type: 'TRIGGER_AUTOFILL' }, { frameId: 0 });
+      } catch (_) {}
     }
 
-    if (currentActiveTabId) {
-      btnAutofillCurrentTab.disabled = true;
-      btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⏳</span> Đang điền bệnh án...';
-
-      chrome.tabs.sendMessage(currentActiveTabId, { type: 'TRIGGER_AUTOFILL' }, (response) => {
-        setTimeout(() => {
-          btnAutofillCurrentTab.disabled = false;
-          btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⚡</span> 1-Click Điền Bệnh Án Chuẩn BHYT';
-          window.close(); // Close popup so user sees the filled textarea
-        }, 300);
-      });
+    btnAutofillCurrentTab.disabled = false;
+    if (response && response.filled) {
+      btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">✅</span> Đã Điền Bệnh Án HIS!';
+      setTimeout(() => {
+        btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⚡</span> 1-Click Điền Bệnh Án Chuẩn BHYT';
+        window.close();
+      }, 450);
+    } else {
+      if (response && response.note && navigator.clipboard) {
+        try { await navigator.clipboard.writeText(response.note); } catch (_) {}
+        btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">📋</span> Đã chép mẫu (Không thấy ô HIS)';
+      } else {
+        btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⚠️</span> Không tìm thấy ô bệnh án';
+      }
+      setTimeout(() => {
+        btnAutofillCurrentTab.innerHTML = '<span class="btn-icon">⚡</span> 1-Click Điền Bệnh Án Chuẩn BHYT';
+      }, 2400);
     }
   });
 
@@ -223,17 +255,42 @@
     searchInput.focus();
   });
 
+  function normText(str) {
+    return (str || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
+  }
+
+  function matchesQuery(fields, rawQ, normQ) {
+    if (!rawQ) return true;
+    for (const f of fields) {
+      if (!f) continue;
+      const s = String(f);
+      if (s.toLowerCase().includes(rawQ) || normText(s).includes(normQ)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function renderSearchResults(query) {
     if (!catalog) return;
-    const q = query.toLowerCase();
+    const rawQ = (query || '').toLowerCase().trim();
+    const normQ = normText(rawQ);
     const results = [];
-    const limit = 30;
+    const perBucketCap = activeFilter === 'all' ? (rawQ ? 10 : 5) : 40;
 
     // Search ICD-10
     if (activeFilter === 'all' || activeFilter === 'icd10') {
       if (catalog.icd10) {
+        let count = 0;
         for (const item of catalog.icd10) {
-          if (!q || item.code.toLowerCase().includes(q) || item.name_vn.toLowerCase().includes(q) || (item.name_en && item.name_en.toLowerCase().includes(q))) {
+          if (matchesQuery([item.code, item.name_vn, item.name_en, item.chapter_name], rawQ, normQ)) {
             results.push({
               type: 'ICD-10',
               typeTag: 'ICD',
@@ -241,17 +298,19 @@
               name: item.name_vn,
               sub: item.chapter_name || item.name_en || 'Danh mục chuẩn Bộ Y tế'
             });
-            if (results.length >= limit) break;
+            count++;
+            if (count >= perBucketCap) break;
           }
         }
       }
     }
 
     // Search Thuốc Tân Dược BHYT
-    if ((activeFilter === 'all' || activeFilter === 'thuoc') && results.length < limit) {
+    if (activeFilter === 'all' || activeFilter === 'thuoc') {
       if (catalog.thuoc_bhyt) {
+        let count = 0;
         for (const item of catalog.thuoc_bhyt) {
-          if (!q || item.ten_hoat_chat.toLowerCase().includes(q) || (item.ghi_chu_xuat_toan && item.ghi_chu_xuat_toan.toLowerCase().includes(q))) {
+          if (matchesQuery([item.ma_hoat_chat, item.ten_hoat_chat, item.nhom_duoc_ly, item.dieu_kien_thanh_toan, item.ghi_chu_xuat_toan], rawQ, normQ)) {
             results.push({
               type: 'Thuốc Tân Dược',
               typeTag: 'TÂN DƯỢC',
@@ -259,17 +318,19 @@
               name: item.ten_hoat_chat,
               sub: `Tuyến được kê: ${item.hang_bv_duoc_ke} • ĐK: ${item.dieu_kien_thanh_toan || 'Theo hướng dẫn BYT'}`
             });
-            if (results.length >= limit) break;
+            count++;
+            if (count >= perBucketCap) break;
           }
         }
       }
     }
 
     // Search Thuốc & Vị YHCT
-    if ((activeFilter === 'all' || activeFilter === 'yhct') && results.length < limit) {
+    if (activeFilter === 'all' || activeFilter === 'yhct') {
       if (catalog.thuoc_yhct) {
+        let count = 0;
         for (const item of catalog.thuoc_yhct) {
-          if (!q || item.ten_vi_thuoc.toLowerCase().includes(q) || (item.cong_dung && item.cong_dung.toLowerCase().includes(q))) {
+          if (matchesQuery([item.ma_vi_thuoc, item.ten_vi_thuoc, item.ten_khoa_hoc, item.cong_dung, item.tinh_vi_quy_kinh, item.tuong_tac_tay_y], rawQ, normQ)) {
             results.push({
               type: 'Vị thuốc YHCT',
               typeTag: 'YHCT',
@@ -277,17 +338,19 @@
               name: item.ten_vi_thuoc,
               sub: `Công dụng: ${item.cong_dung} ${item.tuong_tac_tay_y ? `• ⚠️ ${item.tuong_tac_tay_y}` : ''}`
             });
-            if (results.length >= limit) break;
+            count++;
+            if (count >= perBucketCap) break;
           }
         }
       }
     }
 
     // Search Thủ Thuật BHYT
-    if ((activeFilter === 'all' || activeFilter === 'thu_thuat') && results.length < limit) {
+    if (activeFilter === 'all' || activeFilter === 'thu_thuat') {
       if (catalog.thu_thuat_bhyt) {
+        let count = 0;
         for (const item of catalog.thu_thuat_bhyt) {
-          if (!q || item.ten_dich_vu.toLowerCase().includes(q) || (item.dieu_kien_chi_dinh && item.dieu_kien_chi_dinh.toLowerCase().includes(q))) {
+          if (matchesQuery([item.ma_dich_vu, item.ten_dich_vu, item.chuyen_khoa, item.dieu_kien_chi_dinh, item.icd_phu_hop], rawQ, normQ)) {
             results.push({
               type: 'Thủ thuật',
               typeTag: 'KỸ THUẬT',
@@ -295,7 +358,8 @@
               name: item.ten_dich_vu,
               sub: `Định mức tối đa: ${item.so_ngay_toi_da} ngày/đợt • ${item.dieu_kien_chi_dinh}`
             });
-            if (results.length >= limit) break;
+            count++;
+            if (count >= perBucketCap) break;
           }
         }
       }
